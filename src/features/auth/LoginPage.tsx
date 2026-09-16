@@ -1,19 +1,25 @@
 import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "./useAuth.ts";
 import { AxiosError } from "axios";
 import type { ApiErrorResponse } from "../../types/auth.ts";
-import { BrainCircuit, Mail, Lock, AlertCircle, Loader2, Eye, EyeOff } from "lucide-react";
+import { BrainCircuit, Mail, Lock, AlertCircle, Loader2, Eye, EyeOff, CheckCircle2 } from "lucide-react";
 
 export const LoginPage: React.FC = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const [email, setEmail] = useState("");
+  const locationState = location.state as { email?: string; successMessage?: string } | null;
+
+  const [email, setEmail] = useState(locationState?.email || "");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(
+    locationState?.successMessage || null
+  );
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -21,7 +27,9 @@ export const LoginPage: React.FC = () => {
     if (isSubmitting) return;
 
     setErrorMessage(null);
+    setSuccessMessage(null);
     setFieldErrors({});
+
 
     const trimmedEmail = email.trim();
     if (!trimmedEmail) {
@@ -76,6 +84,13 @@ export const LoginPage: React.FC = () => {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800/80 py-8 px-5 shadow-2xl rounded-2xl sm:px-10">
+          {successMessage && (
+            <div className="mb-6 rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-4 text-emerald-300 text-xs sm:text-sm flex items-start gap-3 animate-in fade-in duration-200">
+              <CheckCircle2 className="w-5 h-5 flex-shrink-0 mt-0.5 text-emerald-400" />
+              <span className="leading-relaxed">{successMessage}</span>
+            </div>
+          )}
+
           {errorMessage && (
             <div className="mb-6 rounded-xl bg-rose-500/10 border border-rose-500/30 p-4 text-rose-300 text-xs sm:text-sm flex items-start gap-3 animate-in fade-in duration-200">
               <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-rose-400" />

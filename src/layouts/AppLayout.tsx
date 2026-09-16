@@ -14,6 +14,7 @@ import {
   deriveConversationTitle,
   isLegacyTitle,
 } from "../features/chat/utils/title.utils.ts";
+import { TokenBalanceWidget } from "../features/token/index.ts";
 import type { SafeConversation, SafeMessage } from "../features/chat/types/chat.types.ts";
 import {
   BrainCircuit,
@@ -249,6 +250,9 @@ export const AppLayout: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* Token Balance Indicator */}
+        <TokenBalanceWidget />
 
         {/* Sidebar Bottom: User Profile Area & Logout */}
         <div className="p-3 border-t border-slate-800 bg-slate-900/90">

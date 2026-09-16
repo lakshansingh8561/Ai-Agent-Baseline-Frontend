@@ -51,7 +51,13 @@ export const RegisterPage: React.FC = () => {
         email: trimmedEmail,
         password,
       });
-      navigate("/app", { replace: true });
+      navigate("/login", {
+        replace: true,
+        state: {
+          successMessage: "Account created successfully. Please sign in.",
+          email: trimmedEmail,
+        },
+      });
     } catch (error) {
       if (error instanceof AxiosError && error.response) {
         const errorData = error.response.data as ApiErrorResponse;

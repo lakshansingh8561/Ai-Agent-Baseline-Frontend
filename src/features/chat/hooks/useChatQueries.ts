@@ -6,6 +6,8 @@ import {
   fetchMessages,
   sendMessage,
 } from "../api/chat.api.ts";
+import { tokenKeys } from "../../token/index.ts";
+
 import type {
   SafeConversation,
   SafeMessage,
@@ -95,6 +97,9 @@ export const useSendMessage = (conversationId?: string) => {
 
       // Invalidate conversations list so updatedAt timestamp updates ordering
       queryClient.invalidateQueries({ queryKey: chatKeys.conversations() });
+
+      // Invalidate token balance so latest wallet state from server is reflected
+      queryClient.invalidateQueries({ queryKey: tokenKeys.balance() });
     },
   });
 };

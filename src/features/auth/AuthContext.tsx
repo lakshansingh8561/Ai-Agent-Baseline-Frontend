@@ -59,12 +59,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const register = useCallback(async (data: RegisterData): Promise<void> => {
-    const response = await api.post<AuthResponse>("/api/auth/register", data);
-    const { token: newToken, user: newUser } = response.data.data;
-    setStoredToken(newToken);
-    setToken(newToken);
-    setUser(newUser);
+    // Register the account, but DO NOT store the token and DO NOT establish an authenticated session
+    await api.post<AuthResponse>("/api/auth/register", data);
   }, []);
+
 
   const logout = useCallback((): void => {
     removeStoredToken();
