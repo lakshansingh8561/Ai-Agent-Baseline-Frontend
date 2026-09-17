@@ -39,7 +39,8 @@ export const useMessages = (conversationId?: string) => {
       return fetchMessages(conversationId);
     },
     enabled: Boolean(conversationId),
-    staleTime: 1000 * 30, // 30 seconds
+    staleTime: 0,
+    refetchOnMount: true,
   });
 };
 
@@ -94,13 +95,18 @@ export const useSendMessage = (conversationId?: string) => {
       queryClient.setQueryData<SafeMessage[]>(
         chatKeys.messages(activeId),
         (oldMessages = []) => {
+          // Remove temporary optimistic messages matching content
+          const nonTemp = oldMessages.filter(
+            (m) => !m.id.startsWith("temp_") || m.content !== result.userMessage.content
+          );
+
           // Avoid duplicate keys if already added
-          const hasUser = oldMessages.some((m) => m.id === result.userMessage.id);
-          const hasAssistant = oldMessages.some(
+          const hasUser = nonTemp.some((m) => m.id === result.userMessage.id);
+          const hasAssistant = nonTemp.some(
             (m) => m.id === result.assistantMessage.id
           );
 
-          const updated = [...oldMessages];
+          const updated = [...nonTemp];
           if (!hasUser) updated.push(result.userMessage);
           if (!hasAssistant) updated.push(result.assistantMessage);
 

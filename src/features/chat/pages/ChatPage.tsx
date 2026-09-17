@@ -15,7 +15,7 @@ import {
   setStoredDerivedTitle,
   isLegacyTitle,
 } from "../utils/title.utils.ts";
-import type { SafeConversation } from "../types/chat.types.ts";
+import type { SafeConversation, SafeMessage } from "../types/chat.types.ts";
 import { MessageItem } from "../components/MessageItem.tsx";
 import { MessageComposer } from "../components/MessageComposer.tsx";
 import { EmptyChatView } from "../components/EmptyChatView.tsx";
@@ -194,6 +194,20 @@ export const ChatPage: React.FC = () => {
 
         const targetConversationId = newConversation.id;
 
+        // Optimistically populate conversation message cache so the prompt is immediately visible
+        // even if user navigates to New Chat and immediately re-opens this conversation
+        const optimisticMsg: SafeMessage = {
+          id: `temp_${Date.now()}`,
+          conversationId: targetConversationId,
+          role: "user",
+          content,
+          createdAt: new Date().toISOString(),
+        };
+        queryClient.setQueryData<SafeMessage[]>(
+          chatKeys.messages(targetConversationId),
+          [optimisticMsg]
+        );
+
         // Navigate using React Router replace so URL reflects new conversation without reload
         navigate(`/app/${targetConversationId}`, { replace: true });
         activeConversationIdRef.current = targetConversationId;
@@ -216,6 +230,11 @@ export const ChatPage: React.FC = () => {
             },
             onError: (err) => {
               isTransitioningFromDraftRef.current = false;
+              // Remove temporary optimistic message on failure
+              queryClient.setQueryData<SafeMessage[]>(
+                chatKeys.messages(targetConversationId),
+                (old = []) => old.filter((m) => m.id !== optimisticMsg.id)
+              );
               if (
                 activeRequestIdRef.current === currentRequestId &&
                 activeConversationIdRef.current === targetConversationId
@@ -250,6 +269,18 @@ export const ChatPage: React.FC = () => {
     const currentRequestId = ++requestIdCounter.current;
     activeRequestIdRef.current = currentRequestId;
 
+    const optimisticMsg: SafeMessage = {
+      id: `temp_${Date.now()}`,
+      conversationId: targetConversationId,
+      role: "user",
+      content,
+      createdAt: new Date().toISOString(),
+    };
+    queryClient.setQueryData<SafeMessage[]>(
+      chatKeys.messages(targetConversationId),
+      (old = []) => [...old, optimisticMsg]
+    );
+
     sendMessageMutation.mutate(
       { content, targetConversationId },
       {
@@ -265,6 +296,10 @@ export const ChatPage: React.FC = () => {
           }
         },
         onError: (err) => {
+          queryClient.setQueryData<SafeMessage[]>(
+            chatKeys.messages(targetConversationId),
+            (old = []) => old.filter((m) => m.id !== optimisticMsg.id)
+          );
           if (
             activeRequestIdRef.current === currentRequestId &&
             activeConversationIdRef.current === targetConversationId
@@ -335,6 +370,13 @@ export const ChatPage: React.FC = () => {
 
   const activeErrorMessage = errorMessage;
 
+  const messageList: SafeMessage[] = messages ?? [];
+  const hasMessages = messageList.length > 0;
+  const lastMessage = hasMessages ? messageList[messageList.length - 1] : null;
+  const isGenerating =
+    Boolean(pendingUserContent) ||
+    (Boolean(conversationId) && lastMessage?.role === "user");
+
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-950">
       {/* Conversation Top Bar */}
@@ -401,62 +443,89 @@ export const ChatPage: React.FC = () => {
 
       {/* Main Message Stream */}
       <div className="flex-1 overflow-y-auto p-2 sm:p-4 md:p-6 space-y-1">
-        {isLoadingMessages ? (
+        {!conversationId ? (
+          // DRAFT VIEW: Only on /app without conversationId
+          pendingUserContent ? (
+            <>
+              {/* Temporary pending user message */}
+              <div className="flex justify-end mb-4 px-2 sm:px-4 opacity-80">
+                <div className="flex flex-col items-end max-w-[85%] sm:max-w-[75%]">
+                  <div className="flex items-center gap-1.5 mb-1 text-[11px] text-slate-400">
+                    <span className="font-medium text-slate-300">You</span>
+                    <span>•</span>
+                    <span>Sending...</span>
+                  </div>
+                  <div className="rounded-2xl rounded-tr-xs bg-indigo-600 px-4 py-3 text-sm text-white shadow-md leading-relaxed whitespace-pre-wrap break-words">
+                    {pendingUserContent}
+                  </div>
+                </div>
+              </div>
+
+              {/* Assistant Generating Indicator */}
+              <div className="flex justify-start mb-6 px-2 sm:px-4">
+                <div className="flex gap-3 max-w-[85%]">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center flex-shrink-0 mt-0.5 animate-pulse">
+                    <BrainCircuit className="w-4 h-4" />
+                  </div>
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-1.5 mb-1.5 text-[11px] text-slate-400">
+                      <span className="font-semibold text-indigo-400">NexaMind</span>
+                      <span>•</span>
+                      <span>Generating response...</span>
+                    </div>
+                    <div className="rounded-2xl rounded-tl-xs bg-slate-900 border border-slate-800 px-4 py-3.5 text-sm text-slate-300 shadow-sm flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-indigo-500 animate-ping" />
+                      <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
+                      <span className="w-2 h-2 rounded-full bg-indigo-300 animate-pulse" />
+                      <span className="text-xs text-slate-400 ml-1">Thinking...</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div ref={messagesEndRef} />
+            </>
+          ) : (
+            <EmptyChatView onSelectPrompt={(prompt) => handleSendMessage(prompt)} />
+          )
+        ) : isLoadingMessages && !hasMessages ? (
+          // CONVERSATION LOADING VIEW (when first mounting an existing conversation)
           <div className="h-full flex flex-col items-center justify-center text-slate-400 py-16">
             <Loader2 className="w-8 h-8 animate-spin text-indigo-500 mb-3" />
             <p className="text-xs font-medium">Loading message history...</p>
           </div>
-        ) : (messages && messages.length > 0) || pendingUserContent ? (
+        ) : (
+          // ACTIVE CONVERSATION VIEW (Never renders EmptyChatView on a real conversation)
           <>
-            {messages?.map((msg) => (
+            {messageList.map((msg) => (
               <MessageItem key={msg.id} message={msg} />
             ))}
 
-            {/* Optimistic / In-flight Message UI */}
-            {pendingUserContent && (
-              <>
-                {/* Temporary pending user message */}
-                <div className="flex justify-end mb-4 px-2 sm:px-4 opacity-80">
-                  <div className="flex flex-col items-end max-w-[85%] sm:max-w-[75%]">
-                    <div className="flex items-center gap-1.5 mb-1 text-[11px] text-slate-400">
-                      <span className="font-medium text-slate-300">You</span>
+            {/* Assistant Generating Indicator */}
+            {isGenerating && (
+              <div className="flex justify-start mb-6 px-2 sm:px-4">
+                <div className="flex gap-3 max-w-[85%]">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center flex-shrink-0 mt-0.5 animate-pulse">
+                    <BrainCircuit className="w-4 h-4" />
+                  </div>
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-1.5 mb-1.5 text-[11px] text-slate-400">
+                      <span className="font-semibold text-indigo-400">NexaMind</span>
                       <span>•</span>
-                      <span>Sending...</span>
+                      <span>Generating response...</span>
                     </div>
-                    <div className="rounded-2xl rounded-tr-xs bg-indigo-600 px-4 py-3 text-sm text-white shadow-md leading-relaxed whitespace-pre-wrap break-words">
-                      {pendingUserContent}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Assistant Generating Indicator */}
-                <div className="flex justify-start mb-6 px-2 sm:px-4">
-                  <div className="flex gap-3 max-w-[85%]">
-                    <div className="w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center flex-shrink-0 mt-0.5 animate-pulse">
-                      <BrainCircuit className="w-4 h-4" />
-                    </div>
-                    <div className="flex flex-col">
-                      <div className="flex items-center gap-1.5 mb-1.5 text-[11px] text-slate-400">
-                        <span className="font-semibold text-indigo-400">NexaMind</span>
-                        <span>•</span>
-                        <span>Generating response...</span>
-                      </div>
-                      <div className="rounded-2xl rounded-tl-xs bg-slate-900 border border-slate-800 px-4 py-3.5 text-sm text-slate-300 shadow-sm flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-indigo-500 animate-ping" />
-                        <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
-                        <span className="w-2 h-2 rounded-full bg-indigo-300 animate-pulse" />
-                        <span className="text-xs text-slate-400 ml-1">Thinking...</span>
-                      </div>
+                    <div className="rounded-2xl rounded-tl-xs bg-slate-900 border border-slate-800 px-4 py-3.5 text-sm text-slate-300 shadow-sm flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-indigo-500 animate-ping" />
+                      <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
+                      <span className="w-2 h-2 rounded-full bg-indigo-300 animate-pulse" />
+                      <span className="text-xs text-slate-400 ml-1">Thinking...</span>
                     </div>
                   </div>
                 </div>
-              </>
+              </div>
             )}
 
             <div ref={messagesEndRef} />
           </>
-        ) : (
-          <EmptyChatView onSelectPrompt={(prompt) => handleSendMessage(prompt)} />
         )}
       </div>
 
