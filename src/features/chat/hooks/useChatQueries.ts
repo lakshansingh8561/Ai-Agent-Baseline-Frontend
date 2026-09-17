@@ -1,5 +1,4 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
 import {
   fetchConversations,
   createConversation,
@@ -16,10 +15,10 @@ import type {
 } from "../types/chat.types.ts";
 
 export const chatKeys = {
-  all: ["chat"] as const,
-  conversations: () => [...chatKeys.all, "conversations"] as const,
+  all: ["conversations"] as const,
+  conversations: () => ["conversations"] as const,
   messages: (conversationId?: string) =>
-    [...chatKeys.all, "messages", conversationId] as const,
+    ["conversations", conversationId, "messages"] as const,
 };
 
 export const useConversations = () => {
@@ -46,14 +45,28 @@ export const useMessages = (conversationId?: string) => {
 
 export const useCreateConversation = () => {
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
 
   return useMutation<SafeConversation, Error, CreateConversationInput | undefined>({
     mutationFn: createConversation,
     onSuccess: (newConversation) => {
-      // Invalidate conversation list so new thread appears at the top
-      queryClient.invalidateQueries({ queryKey: chatKeys.conversations() });
-      navigate(`/app/${newConversation.id}`);
+      // Pre-seed the messages cache for the newly created conversation with empty array
+      // This prevents useMessages from triggering a loading spinner / unmounting messages UI
+      queryClient.setQueryData<SafeMessage[]>(
+        chatKeys.messages(newConversation.id),
+        []
+      );
+
+      // Pre-populate or update the conversations list cache so new thread appears immediately
+      queryClient.setQueryData<SafeConversation[]>(
+        chatKeys.conversations(),
+        (old = []) => [
+          newConversation,
+          ...old.filter((c) => c.id !== newConversation.id),
+        ]
+      );
+
+      // Invalidate conversation list so ordering and server state stay synchronized
+      queryClient.invalidateQueries({ queryKey: chatKeys.conversations(), exact: true });
     },
   });
 };
@@ -96,7 +109,7 @@ export const useSendMessage = (conversationId?: string) => {
       );
 
       // Invalidate conversations list so updatedAt timestamp updates ordering
-      queryClient.invalidateQueries({ queryKey: chatKeys.conversations() });
+      queryClient.invalidateQueries({ queryKey: chatKeys.conversations(), exact: true });
 
       // Invalidate token balance so latest wallet state from server is reflected
       queryClient.invalidateQueries({ queryKey: tokenKeys.balance() });

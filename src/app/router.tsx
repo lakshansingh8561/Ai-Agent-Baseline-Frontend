@@ -27,11 +27,7 @@ export const router = createBrowserRouter([
         element: <AppLayout />,
         children: [
           {
-            index: true,
-            element: <ChatPage />,
-          },
-          {
-            path: ":conversationId",
+            path: ":conversationId?",
             element: <ChatPage />,
           },
         ],
