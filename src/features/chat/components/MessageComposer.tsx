@@ -29,13 +29,17 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
     textarea.style.height = `${Math.max(nextHeight, 44)}px`;
   }, [content]);
 
+  // Focus textarea on mount or reset
+  useEffect(() => {
+    textareaRef.current?.focus();
+  }, []);
+
   const handleSubmit = () => {
     const trimmed = content.trim();
     if (!trimmed || isLoading || disabled || trimmed.length > MAX_CHAR_COUNT) return;
 
     onSendMessage(trimmed, () => {
       setContent("");
-      // Reset height and refocus
       if (textareaRef.current) {
         textareaRef.current.style.height = "44px";
         textareaRef.current.focus();

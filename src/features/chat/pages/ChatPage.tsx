@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { AxiosError } from "axios";
 import {
@@ -31,7 +31,17 @@ import {
 export const ChatPage: React.FC = () => {
   const { conversationId } = useParams<{ conversationId?: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
+
+  // Unique request counter and active request ID for strict stale-request isolation
+  const requestIdCounter = useRef<number>(0);
+  const activeRequestIdRef = useRef<number>(0);
+
+  // Track the active conversation ID to prevent in-flight responses from old conversations leaking into new/other conversations
+  const activeConversationIdRef = useRef<string | undefined>(conversationId);
+  // Track when we are intentionally transitioning from draft (/app) to a newly created conversation (/app/:id)
+  const isTransitioningFromDraftRef = useRef(false);
 
   const { data: conversations, isLoading: isLoadingConversations } =
     useConversations();
@@ -44,6 +54,7 @@ export const ChatPage: React.FC = () => {
   const createConversationMutation = useCreateConversation();
   const sendMessageMutation = useSendMessage(conversationId);
 
+  const [composerKey, setComposerKey] = useState(0);
   const [pendingUserContent, setPendingUserContent] = useState<string | null>(
     null
   );
@@ -51,6 +62,50 @@ export const ChatPage: React.FC = () => {
   const [isTokenLimitError, setIsTokenLimitError] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const prevConversationIdRef = useRef(conversationId);
+  const prevResetDraftRef = useRef(location.state?.resetDraft);
+
+  // Sync activeConversationIdRef whenever conversationId changes
+  useEffect(() => {
+    activeConversationIdRef.current = conversationId;
+  }, [conversationId]);
+
+  // Reset UI state when switching conversations or when New Chat is explicitly clicked
+  useEffect(() => {
+    const conversationChanged = prevConversationIdRef.current !== conversationId;
+    const resetDraftTriggered =
+      location.state?.resetDraft &&
+      location.state.resetDraft !== prevResetDraftRef.current;
+
+    prevConversationIdRef.current = conversationId;
+    prevResetDraftRef.current = location.state?.resetDraft;
+
+    if (resetDraftTriggered) {
+      // Explicit New Chat requested: invalidate any in-flight request identity
+      activeRequestIdRef.current = ++requestIdCounter.current;
+      isTransitioningFromDraftRef.current = false;
+      activeConversationIdRef.current = undefined;
+
+      setPendingUserContent(null);
+      setErrorMessage(null);
+      setIsTokenLimitError(false);
+      setComposerKey((k) => k + 1);
+      return;
+    }
+
+    if (conversationChanged) {
+      if (isTransitioningFromDraftRef.current) {
+        // Seamless transition from draft to newly created conversation: keep pending state intact
+        return;
+      }
+      // User switched conversations: invalidate any in-flight request identity
+      activeRequestIdRef.current = ++requestIdCounter.current;
+      setPendingUserContent(null);
+      setErrorMessage(null);
+      setIsTokenLimitError(false);
+      setComposerKey((k) => k + 1);
+    }
+  }, [conversationId, location.state]);
 
   // Auto-scroll to bottom
   const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
@@ -81,7 +136,6 @@ export const ChatPage: React.FC = () => {
   }, [conversationId, messages, conversations, queryClient]);
 
   const handleSendError = (err: unknown) => {
-
     setPendingUserContent(null);
     if (err instanceof AxiosError && err.response) {
       if (err.response.status === 402) {
@@ -117,61 +171,123 @@ export const ChatPage: React.FC = () => {
     setPendingUserContent(content);
 
     if (!conversationId) {
-      // Draft flow: derive title from first prompt and create conversation first
+      // Draft flow: generate unique request ID
+      const currentRequestId = ++requestIdCounter.current;
+      activeRequestIdRef.current = currentRequestId;
+      isTransitioningFromDraftRef.current = true;
+
       try {
         const title = deriveConversationTitle(content);
         const newConversation = await createConversationMutation.mutateAsync({
           title,
         });
 
+        // DRAFT RACE CHECK:
+        // If user clicked New Chat or navigated away while createConversation was in-flight, abort immediately.
+        if (
+          activeRequestIdRef.current !== currentRequestId ||
+          activeConversationIdRef.current !== undefined
+        ) {
+          isTransitioningFromDraftRef.current = false;
+          return;
+        }
+
+        const targetConversationId = newConversation.id;
+
+        // Navigate using React Router replace so URL reflects new conversation without reload
+        navigate(`/app/${targetConversationId}`, { replace: true });
+        activeConversationIdRef.current = targetConversationId;
+
         // Send message to the newly created conversation
         sendMessageMutation.mutate(
-          { content, targetConversationId: newConversation.id },
+          { content, targetConversationId },
           {
             onSuccess: () => {
-              setPendingUserContent(null);
-              onSuccessCallback?.();
+              isTransitioningFromDraftRef.current = false;
+              // STALE-REQUEST ISOLATION:
+              // Only update UI if this exact request still belongs to the currently active conversation
+              if (
+                activeRequestIdRef.current === currentRequestId &&
+                activeConversationIdRef.current === targetConversationId
+              ) {
+                setPendingUserContent(null);
+                onSuccessCallback?.();
+              }
             },
             onError: (err) => {
-              handleSendError(err);
+              isTransitioningFromDraftRef.current = false;
+              if (
+                activeRequestIdRef.current === currentRequestId &&
+                activeConversationIdRef.current === targetConversationId
+              ) {
+                handleSendError(err);
+              }
             },
           }
         );
       } catch (err) {
-        // Conversation creation failed:
-        // Do not send message, preserve draft, show error, no duplicate conversation on retry
-        setPendingUserContent(null);
-        if (err instanceof AxiosError && err.response) {
-          setErrorMessage(
-            (err.response.data as { message?: string })?.message ||
-              "Failed to create conversation. Please try again."
-          );
-        } else {
-          setErrorMessage(
-            "Failed to create conversation. Please check your network connection."
-          );
+        // Conversation creation failed before navigation:
+        if (activeRequestIdRef.current === currentRequestId) {
+          isTransitioningFromDraftRef.current = false;
+          setPendingUserContent(null);
+          if (err instanceof AxiosError && err.response) {
+            setErrorMessage(
+              (err.response.data as { message?: string })?.message ||
+                "Failed to create conversation. Please try again."
+            );
+          } else {
+            setErrorMessage(
+              "Failed to create conversation. Please check your network connection."
+            );
+          }
         }
       }
       return;
     }
 
     // Existing conversation flow:
+    const targetConversationId = conversationId;
+    const currentRequestId = ++requestIdCounter.current;
+    activeRequestIdRef.current = currentRequestId;
+
     sendMessageMutation.mutate(
-      { content },
+      { content, targetConversationId },
       {
         onSuccess: () => {
-          setPendingUserContent(null);
-          onSuccessCallback?.();
+          // STALE-REQUEST ISOLATION:
+          // Only update UI if this exact request still belongs to the currently active conversation
+          if (
+            activeRequestIdRef.current === currentRequestId &&
+            activeConversationIdRef.current === targetConversationId
+          ) {
+            setPendingUserContent(null);
+            onSuccessCallback?.();
+          }
         },
         onError: (err) => {
-          handleSendError(err);
+          if (
+            activeRequestIdRef.current === currentRequestId &&
+            activeConversationIdRef.current === targetConversationId
+          ) {
+            handleSendError(err);
+          }
         },
       }
     );
   };
 
   const handleStartNewChat = () => {
-    navigate("/app");
+    // Invalidate in-flight request identity immediately
+    activeRequestIdRef.current = ++requestIdCounter.current;
+    isTransitioningFromDraftRef.current = false;
+    activeConversationIdRef.current = undefined;
+
+    setPendingUserContent(null);
+    setErrorMessage(null);
+    setIsTokenLimitError(false);
+    setComposerKey((k) => k + 1);
+
+    navigate("/app", { state: { resetDraft: Date.now() } });
   };
 
   const currentConversation = conversations?.find((c) => c.id === conversationId);
@@ -206,7 +322,7 @@ export const ChatPage: React.FC = () => {
           </button>
           <button
             type="button"
-            onClick={() => navigate("/app")}
+            onClick={handleStartNewChat}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700/60 font-medium text-sm transition-all cursor-pointer active:scale-98"
           >
             <MessageSquare className="w-4 h-4 text-slate-400" />
@@ -346,6 +462,7 @@ export const ChatPage: React.FC = () => {
 
       {/* Bottom Composer */}
       <MessageComposer
+        key={composerKey}
         onSendMessage={handleSendMessage}
         isLoading={
           sendMessageMutation.isPending || createConversationMutation.isPending

@@ -125,7 +125,7 @@ export const AppLayout: React.FC = () => {
   };
 
   const handleNewChat = () => {
-    navigate("/app");
+    navigate("/app", { state: { resetDraft: Date.now() } });
     setMobileMenuOpen(false);
   };
 
