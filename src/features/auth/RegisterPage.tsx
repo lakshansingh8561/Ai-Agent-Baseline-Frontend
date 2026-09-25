@@ -84,33 +84,33 @@ export const RegisterPage: React.FC = () => {
   const isNameValid = name.trim().length >= 2;
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 text-slate-100 selection:bg-indigo-500 selection:text-white">
+    <div className="min-h-screen bg-slate-100 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 text-slate-800 selection:bg-indigo-500 selection:text-white">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-        <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 mb-4 shadow-inner ring-1 ring-indigo-500/20">
+        <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-indigo-50 border border-indigo-200/80 text-indigo-600 mb-4 shadow-sm ring-1 ring-indigo-500/10">
           <BrainCircuit className="w-9 h-9" />
         </div>
-        <h1 className="text-3xl font-extrabold tracking-tight text-white">Create an Account</h1>
-        <p className="mt-2 text-sm text-slate-400 max-w-xs mx-auto">
-          Get started with NexaMind to experience intelligent autonomous AI workflows
+        <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Create an Account</h1>
+        <p className="mt-2 text-sm text-slate-500 max-w-xs mx-auto">
+          Get started with Lumina AI to experience intelligent autonomous AI workflows
         </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800/80 py-8 px-5 shadow-2xl rounded-2xl sm:px-10">
+        <div className="bg-white border border-slate-200/90 py-8 px-5 shadow-xl rounded-2xl sm:px-10">
           {errorMessage && (
-            <div className="mb-6 rounded-xl bg-rose-500/10 border border-rose-500/30 p-4 text-rose-300 text-xs sm:text-sm flex items-start gap-3 animate-in fade-in duration-200">
-              <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-rose-400" />
+            <div className="mb-6 rounded-xl bg-rose-50 border border-rose-200 p-4 text-rose-800 text-xs sm:text-sm flex items-start gap-3 animate-in fade-in duration-200">
+              <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-rose-600" />
               <span className="leading-relaxed">{errorMessage}</span>
             </div>
           )}
 
           <form className="space-y-5" onSubmit={handleSubmit} noValidate>
             <div>
-              <label htmlFor="name" className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label htmlFor="name" className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                 Full Name
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                   <UserIcon className="w-4 h-4" />
                 </div>
                 <input
@@ -123,24 +123,24 @@ export const RegisterPage: React.FC = () => {
                   onChange={(e) => setName(e.target.value)}
                   disabled={isSubmitting}
                   placeholder="Jane Doe"
-                  className={`block w-full pl-10 pr-3 py-2.5 bg-slate-950 border rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 disabled:opacity-50 transition-all ${
-                    fieldErrors.name ? "border-rose-500/80" : "border-slate-800 focus:border-indigo-500"
+                  className={`block w-full pl-10 pr-3 py-2.5 bg-slate-50 border rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 focus:bg-white disabled:opacity-50 transition-all ${
+                    fieldErrors.name ? "border-rose-400" : "border-slate-200 focus:border-indigo-500"
                   }`}
                 />
               </div>
               {fieldErrors.name ? (
-                <p className="mt-1.5 text-xs text-rose-400">{fieldErrors.name[0]}</p>
+                <p className="mt-1.5 text-xs text-rose-600">{fieldErrors.name[0]}</p>
               ) : name && !isNameValid ? (
                 <p className="mt-1.5 text-xs text-slate-400">At least 2 characters required</p>
               ) : null}
             </div>
 
             <div>
-              <label htmlFor="email" className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label htmlFor="email" className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                 Email address
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                   <Mail className="w-4 h-4" />
                 </div>
                 <input
@@ -153,22 +153,22 @@ export const RegisterPage: React.FC = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={isSubmitting}
                   placeholder="you@example.com"
-                  className={`block w-full pl-10 pr-3 py-2.5 bg-slate-950 border rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 disabled:opacity-50 transition-all ${
-                    fieldErrors.email ? "border-rose-500/80" : "border-slate-800 focus:border-indigo-500"
+                  className={`block w-full pl-10 pr-3 py-2.5 bg-slate-50 border rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 focus:bg-white disabled:opacity-50 transition-all ${
+                    fieldErrors.email ? "border-rose-400" : "border-slate-200 focus:border-indigo-500"
                   }`}
                 />
               </div>
               {fieldErrors.email && (
-                <p className="mt-1.5 text-xs text-rose-400">{fieldErrors.email[0]}</p>
+                <p className="mt-1.5 text-xs text-rose-600">{fieldErrors.email[0]}</p>
               )}
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label htmlFor="password" className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                 Password
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                   <Lock className="w-4 h-4" />
                 </div>
                 <input
@@ -181,14 +181,14 @@ export const RegisterPage: React.FC = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isSubmitting}
                   placeholder="At least 8 characters"
-                  className={`block w-full pl-10 pr-10 py-2.5 bg-slate-950 border rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 disabled:opacity-50 transition-all ${
-                    fieldErrors.password ? "border-rose-500/80" : "border-slate-800 focus:border-indigo-500"
+                  className={`block w-full pl-10 pr-10 py-2.5 bg-slate-50 border rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 focus:bg-white disabled:opacity-50 transition-all ${
+                    fieldErrors.password ? "border-rose-400" : "border-slate-200 focus:border-indigo-500"
                   }`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300 focus:outline-none cursor-pointer"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
                   tabIndex={-1}
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
@@ -196,15 +196,15 @@ export const RegisterPage: React.FC = () => {
                 </button>
               </div>
               {fieldErrors.password ? (
-                <p className="mt-1.5 text-xs text-rose-400">{fieldErrors.password[0]}</p>
+                <p className="mt-1.5 text-xs text-rose-600">{fieldErrors.password[0]}</p>
               ) : (
-                <div className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-400">
+                <div className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500">
                   <CheckCircle2
                     className={`w-3.5 h-3.5 transition-colors ${
-                      isPasswordLengthValid ? "text-emerald-400" : "text-slate-600"
+                      isPasswordLengthValid ? "text-emerald-500" : "text-slate-300"
                     }`}
                   />
-                  <span className={isPasswordLengthValid ? "text-emerald-400" : "text-slate-400"}>
+                  <span className={isPasswordLengthValid ? "text-emerald-600" : "text-slate-500"}>
                     Must be at least 8 characters
                   </span>
                 </div>
@@ -215,7 +215,7 @@ export const RegisterPage: React.FC = () => {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full flex justify-center items-center gap-2 py-2.5 px-4 border border-indigo-500/30 rounded-xl shadow-lg shadow-indigo-600/20 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 active:scale-98 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 transition-all cursor-pointer"
+                className="w-full flex justify-center items-center gap-2 py-2.5 px-4 border border-indigo-600 rounded-xl shadow-md shadow-indigo-600/20 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-98 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 transition-all cursor-pointer"
               >
                 {isSubmitting ? (
                   <>
@@ -229,11 +229,11 @@ export const RegisterPage: React.FC = () => {
             </div>
           </form>
 
-          <div className="mt-6 text-center text-sm text-slate-400">
+          <div className="mt-6 text-center text-sm text-slate-500">
             Already have an account?{" "}
             <Link
               to="/login"
-              className="font-medium text-indigo-400 hover:text-indigo-300 underline underline-offset-4 transition-colors"
+              className="font-medium text-indigo-600 hover:text-indigo-700 underline underline-offset-4 transition-colors"
             >
               Sign in
             </Link>

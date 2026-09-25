@@ -70,6 +70,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
   }, []);
 
+  const refreshUser = useCallback(async (): Promise<void> => {
+    try {
+      const response = await api.get<CurrentUserResponse>("/api/auth/me");
+      setUser(response.data.data.user);
+    } catch (error) {
+      console.warn("Failed to refresh user:", error);
+    }
+  }, []);
+
   const value: AuthContextType = {
     user,
     token,
@@ -78,6 +87,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     login,
     register,
     logout,
+    refreshUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

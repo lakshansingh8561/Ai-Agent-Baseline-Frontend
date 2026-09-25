@@ -18,7 +18,7 @@ const renderInlineText = (text: string): React.ReactNode => {
       return (
         <code
           key={index}
-          className="px-1.5 py-0.5 rounded-md bg-slate-800 border border-slate-700/60 font-mono text-xs text-indigo-300 break-all"
+          className="px-1.5 py-0.5 rounded-md bg-slate-100 border border-slate-300/80 font-mono text-xs text-indigo-700 break-all"
         >
           {part.slice(1, -1)}
         </code>
@@ -26,7 +26,7 @@ const renderInlineText = (text: string): React.ReactNode => {
     }
     if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
       return (
-        <strong key={index} className="font-semibold text-white">
+        <strong key={index} className="font-semibold text-slate-900">
           {part.slice(2, -2)}
         </strong>
       );
@@ -52,15 +52,15 @@ const CodeBlock: React.FC<{ language: string; code: string }> = ({ language, cod
   };
 
   return (
-    <div className="my-3 rounded-xl bg-slate-950 border border-slate-800 overflow-hidden shadow-md">
-      <div className="flex items-center justify-between px-3.5 py-1.5 bg-slate-900 border-b border-slate-800 text-[11px] text-slate-400">
+    <div className="my-3 rounded-xl bg-slate-900 border border-slate-800 overflow-hidden shadow-md">
+      <div className="flex items-center justify-between px-3.5 py-1.5 bg-slate-800/80 border-b border-slate-700/60 text-[11px] text-slate-400">
         <span className="font-mono uppercase font-semibold text-slate-300">
           {language || "code"}
         </span>
         <button
           type="button"
           onClick={handleCopy}
-          className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+          className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
           title="Copy to clipboard"
         >
           {copied ? (
@@ -101,13 +101,13 @@ const FormattedAssistantMessage: React.FC<{ content: string }> = ({ content }) =
     if (currentListItems.length > 0) {
       if (isOrderedList) {
         elements.push(
-          <ol key={`${keyPrefix}-ol`} className="list-decimal list-outside ml-5 my-2 space-y-1 text-slate-200 text-sm">
+          <ol key={`${keyPrefix}-ol`} className="list-decimal list-outside ml-5 my-2 space-y-1 text-slate-700 text-sm">
             {currentListItems}
           </ol>
         );
       } else {
         elements.push(
-          <ul key={`${keyPrefix}-ul`} className="list-disc list-outside ml-5 my-2 space-y-1 text-slate-200 text-sm">
+          <ul key={`${keyPrefix}-ul`} className="list-disc list-outside ml-5 my-2 space-y-1 text-slate-700 text-sm">
             {currentListItems}
           </ul>
         );
@@ -119,8 +119,8 @@ const FormattedAssistantMessage: React.FC<{ content: string }> = ({ content }) =
   lines.forEach((line, idx) => {
     // Code block delimiters
     if (line.trim().startsWith("```")) {
-      flushList(`pre-code-${idx}`);
       if (!inCodeBlock) {
+        flushList(`flush-precode-${idx}`);
         inCodeBlock = true;
         codeBlockLang = line.trim().slice(3).trim();
         codeBlockLines = [];
@@ -176,7 +176,7 @@ const FormattedAssistantMessage: React.FC<{ content: string }> = ({ content }) =
     // Headings
     if (line.startsWith("### ")) {
       elements.push(
-        <h3 key={`h3-${idx}`} className="text-base font-bold text-white mt-3 mb-1 tracking-tight">
+        <h3 key={`h3-${idx}`} className="text-base font-bold text-slate-900 mt-3 mb-1 tracking-tight">
           {renderInlineText(line.slice(4))}
         </h3>
       );
@@ -184,7 +184,7 @@ const FormattedAssistantMessage: React.FC<{ content: string }> = ({ content }) =
     }
     if (line.startsWith("## ")) {
       elements.push(
-        <h2 key={`h2-${idx}`} className="text-lg font-bold text-white mt-4 mb-1.5 tracking-tight border-b border-slate-800 pb-1">
+        <h2 key={`h2-${idx}`} className="text-lg font-bold text-slate-900 mt-4 mb-1.5 tracking-tight border-b border-slate-200 pb-1">
           {renderInlineText(line.slice(3))}
         </h2>
       );
@@ -192,7 +192,7 @@ const FormattedAssistantMessage: React.FC<{ content: string }> = ({ content }) =
     }
     if (line.startsWith("# ")) {
       elements.push(
-        <h1 key={`h1-${idx}`} className="text-xl font-extrabold text-white mt-4 mb-2 tracking-tight">
+        <h1 key={`h1-${idx}`} className="text-xl font-extrabold text-slate-900 mt-4 mb-2 tracking-tight">
           {renderInlineText(line.slice(2))}
         </h1>
       );
@@ -207,7 +207,7 @@ const FormattedAssistantMessage: React.FC<{ content: string }> = ({ content }) =
 
     // Regular paragraph
     elements.push(
-      <p key={`p-${idx}`} className="text-sm text-slate-200 leading-relaxed my-1">
+      <p key={`p-${idx}`} className="text-sm text-slate-700 leading-relaxed my-1">
         {renderInlineText(line)}
       </p>
     );
@@ -227,7 +227,7 @@ const FormattedAssistantMessage: React.FC<{ content: string }> = ({ content }) =
     );
   }
 
-  return <div className="space-y-1 text-slate-100">{elements}</div>;
+  return <div className="space-y-1 text-slate-800">{elements}</div>;
 };
 
 export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
@@ -243,11 +243,11 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
       <div className="flex justify-end mb-4 px-2 sm:px-4">
         <div className="flex flex-col items-end max-w-[90%] sm:max-w-[80%] md:max-w-[70%]">
           <div className="flex items-center gap-1.5 mb-1 text-[11px] text-slate-400">
-            <span className="font-semibold text-slate-300">You</span>
+            <span className="font-semibold text-slate-600">You</span>
             <span>•</span>
             <span>{formattedTime}</span>
           </div>
-          <div className="rounded-2xl rounded-tr-xs bg-indigo-600 px-4 py-3 text-sm text-white shadow-md leading-relaxed whitespace-pre-wrap break-words overflow-hidden selection:bg-indigo-800">
+          <div className="rounded-2xl rounded-tr-xs bg-indigo-600 px-4 py-3 text-sm text-white shadow-sm leading-relaxed whitespace-pre-wrap break-words overflow-hidden selection:bg-indigo-800">
             {message.content}
           </div>
         </div>
@@ -258,16 +258,16 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
   return (
     <div className="flex justify-start mb-6 px-2 sm:px-4">
       <div className="flex gap-3 max-w-[98%] sm:max-w-[90%] md:max-w-[85%] w-full">
-        <div className="w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center flex-shrink-0 mt-0.5 shadow-xs">
+        <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-200/70 text-indigo-600 flex items-center justify-center flex-shrink-0 mt-0.5 shadow-xs">
           <BrainCircuit className="w-4 h-4" />
         </div>
         <div className="flex-1 min-w-0 flex flex-col">
           <div className="flex items-center gap-1.5 mb-1.5 text-[11px] text-slate-400">
-            <span className="font-semibold text-indigo-400">NexaMind</span>
+            <span className="font-semibold text-indigo-600">Lumina AI</span>
             <span>•</span>
-            <span>{formattedTime}</span>
+            <span className="text-slate-500">{formattedTime}</span>
           </div>
-          <div className="rounded-2xl rounded-tl-xs bg-slate-900 border border-slate-800/80 px-4 py-3.5 shadow-sm overflow-hidden break-words">
+          <div className="rounded-2xl rounded-tl-xs bg-white border border-slate-200/90 px-4 py-3.5 shadow-xs overflow-hidden break-words">
             <FormattedAssistantMessage content={message.content} />
           </div>
         </div>

@@ -4,6 +4,7 @@ import {
   createConversation,
   fetchMessages,
   sendMessage,
+  deleteConversation,
 } from "../api/chat.api.ts";
 import { tokenKeys } from "../../token/index.ts";
 
@@ -38,8 +39,15 @@ export const useMessages = (conversationId?: string) => {
       }
       return fetchMessages(conversationId);
     },
-    enabled: Boolean(conversationId),
-    staleTime: 1000 * 30, // 30 seconds
+    enabled: Boolean(conversationId), 
+    staleTime: 0,
+    retry: (failureCount, error: any) => {
+      if (error?.response?.status === 404 || error?.response?.status === 400) {
+        return false;
+      }
+      return failureCount < 2;
+    },
+    refetchOnMount: true,
   });
 };
 
@@ -94,13 +102,18 @@ export const useSendMessage = (conversationId?: string) => {
       queryClient.setQueryData<SafeMessage[]>(
         chatKeys.messages(activeId),
         (oldMessages = []) => {
+          // Remove temporary optimistic messages matching content
+          const nonTemp = oldMessages.filter(
+            (m) => !m.id.startsWith("temp_") || m.content !== result.userMessage.content
+          );
+
           // Avoid duplicate keys if already added
-          const hasUser = oldMessages.some((m) => m.id === result.userMessage.id);
-          const hasAssistant = oldMessages.some(
+          const hasUser = nonTemp.some((m) => m.id === result.userMessage.id);
+          const hasAssistant = nonTemp.some(
             (m) => m.id === result.assistantMessage.id
           );
 
-          const updated = [...oldMessages];
+          const updated = [...nonTemp];
           if (!hasUser) updated.push(result.userMessage);
           if (!hasAssistant) updated.push(result.assistantMessage);
 
@@ -114,5 +127,31 @@ export const useSendMessage = (conversationId?: string) => {
       // Invalidate token balance so latest wallet state from server is reflected
       queryClient.invalidateQueries({ queryKey: tokenKeys.balance() });
     },
+    onError: () => {
+      // Invalidate token balance on error (e.g. 402 InsufficientTokensError)
+      queryClient.invalidateQueries({ queryKey: tokenKeys.balance() });
+    },
   });
 };
+
+export const useDeleteConversation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<void, Error, string>({
+    mutationFn: (conversationId: string) => deleteConversation(conversationId),
+    onSuccess: (_, conversationId) => {
+      // Optimistically remove deleted conversation from conversation list
+      queryClient.setQueryData<SafeConversation[]>(
+        chatKeys.conversations(),
+        (old = []) => old.filter((conv) => conv.id !== conversationId)
+      );
+
+      // Remove messages query cache for this conversation
+      queryClient.removeQueries({ queryKey: chatKeys.messages(conversationId), exact: true });
+
+      // Invalidate conversation list to synchronize
+      queryClient.invalidateQueries({ queryKey: chatKeys.conversations(), exact: true });
+    },
+  });
+};
+

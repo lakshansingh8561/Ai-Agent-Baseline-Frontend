@@ -1,6 +1,11 @@
 @import "tailwindcss";
 
-/* ChatGPT-style sleek scrollbar */
+body {
+  background-color: #f1f5f9;
+  color: #0f172a;
+}
+
+/* Sleek scrollbar for soft slate theme */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
 }
@@ -8,9 +13,10 @@
   background: transparent;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.25);
+  background: rgba(148, 163, 184, 0.4);
   border-radius: 9999px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.45);
+  background: rgba(100, 116, 139, 0.6);
 }
+
