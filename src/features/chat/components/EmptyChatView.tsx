@@ -35,14 +35,14 @@ export const EmptyChatView: React.FC<EmptyChatViewProps> = ({ onSelectPrompt }) 
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-2xl mx-auto my-auto">
-      <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mb-4 shadow-inner">
+      <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-200/70 text-indigo-600 flex items-center justify-center mb-4 shadow-sm">
         <BrainCircuit className="w-6 h-6" />
       </div>
 
-      <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight mb-2">
-        How can NexaMind assist you today?
+      <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight mb-2">
+        How can Lumina AI assist you today?
       </h2>
-      <p className="text-xs sm:text-sm text-slate-400 mb-8 max-w-md">
+      <p className="text-xs sm:text-sm text-slate-500 mb-8 max-w-md">
         Ask complex questions, brainstorm architectures, or debug code with high precision.
       </p>
 
@@ -52,15 +52,15 @@ export const EmptyChatView: React.FC<EmptyChatViewProps> = ({ onSelectPrompt }) 
             key={i}
             type="button"
             onClick={() => onSelectPrompt && onSelectPrompt(item.prompt)}
-            className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-indigo-500/40 hover:bg-slate-900 transition-all text-left group cursor-pointer"
+            className="p-3.5 rounded-xl bg-white border border-slate-200/80 hover:border-indigo-400 hover:shadow-md hover:bg-indigo-50/20 transition-all text-left group cursor-pointer shadow-xs"
           >
             <div className="flex items-center gap-2 mb-1">
               {item.icon}
-              <span className="text-xs font-semibold text-slate-200 group-hover:text-indigo-300 transition-colors">
+              <span className="text-xs font-semibold text-slate-800 group-hover:text-indigo-600 transition-colors">
                 {item.title}
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
+            <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">
               {item.desc}
             </p>
           </button>

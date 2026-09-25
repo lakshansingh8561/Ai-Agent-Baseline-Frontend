@@ -4,6 +4,7 @@ import { LoginPage } from "../features/auth/LoginPage.tsx";
 import { RegisterPage } from "../features/auth/RegisterPage.tsx";
 import { AppLayout } from "../layouts/AppLayout.tsx";
 import { ChatPage } from "../features/chat/pages/ChatPage.tsx";
+import { BillingPage } from "../features/subscription/pages/BillingPage.tsx";
 
 export const router = createBrowserRouter([
   {
@@ -27,12 +28,24 @@ export const router = createBrowserRouter([
         element: <AppLayout />,
         children: [
           {
+            path: "billing",
+            element: <BillingPage />,
+          },
+          {
             path: ":conversationId?",
             element: <ChatPage />,
           },
         ],
       },
     ],
+  },
+  {
+    path: "/billing",
+    element: <Navigate to="/app/billing" replace />,
+  },
+  {
+    path: "/pricing",
+    element: <Navigate to="/app/billing" replace />,
   },
   {
     path: "/",
@@ -43,3 +56,4 @@ export const router = createBrowserRouter([
     element: <Navigate to="/app" replace />,
   },
 ]);
+

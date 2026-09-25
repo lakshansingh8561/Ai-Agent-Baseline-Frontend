@@ -4,6 +4,7 @@ import {
   createConversation,
   fetchMessages,
   sendMessage,
+  deleteConversation,
 } from "../api/chat.api.ts";
 import { tokenKeys } from "../../token/index.ts";
 
@@ -38,8 +39,14 @@ export const useMessages = (conversationId?: string) => {
       }
       return fetchMessages(conversationId);
     },
-    enabled: Boolean(conversationId),
+    enabled: Boolean(conversationId), 
     staleTime: 0,
+    retry: (failureCount, error: any) => {
+      if (error?.response?.status === 404 || error?.response?.status === 400) {
+        return false;
+      }
+      return failureCount < 2;
+    },
     refetchOnMount: true,
   });
 };
@@ -120,5 +127,31 @@ export const useSendMessage = (conversationId?: string) => {
       // Invalidate token balance so latest wallet state from server is reflected
       queryClient.invalidateQueries({ queryKey: tokenKeys.balance() });
     },
+    onError: () => {
+      // Invalidate token balance on error (e.g. 402 InsufficientTokensError)
+      queryClient.invalidateQueries({ queryKey: tokenKeys.balance() });
+    },
   });
 };
+
+export const useDeleteConversation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation<void, Error, string>({
+    mutationFn: (conversationId: string) => deleteConversation(conversationId),
+    onSuccess: (_, conversationId) => {
+      // Optimistically remove deleted conversation from conversation list
+      queryClient.setQueryData<SafeConversation[]>(
+        chatKeys.conversations(),
+        (old = []) => old.filter((conv) => conv.id !== conversationId)
+      );
+
+      // Remove messages query cache for this conversation
+      queryClient.removeQueries({ queryKey: chatKeys.messages(conversationId), exact: true });
+
+      // Invalidate conversation list to synchronize
+      queryClient.invalidateQueries({ queryKey: chatKeys.conversations(), exact: true });
+    },
+  });
+};
+

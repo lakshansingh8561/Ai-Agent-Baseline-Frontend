@@ -44,3 +44,10 @@ export const sendMessage = async (
   );
   return response.data.data;
 };
+
+export const deleteConversation = async (
+  conversationId: string
+): Promise<void> => {
+  await api.delete(`/api/chat/conversations/${conversationId}`);
+};
+

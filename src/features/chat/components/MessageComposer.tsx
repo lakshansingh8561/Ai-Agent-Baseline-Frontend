@@ -14,7 +14,7 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
   onSendMessage,
   isLoading,
   disabled = false,
-  placeholder = "Message NexaMind... (Shift+Enter for newline)",
+  placeholder = "Message Lumina AI... (Shift+Enter for newline)",
 }) => {
   const [content, setContent] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -59,9 +59,9 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
   const canSubmit = Boolean(trimmedLength) && !isLoading && !disabled && !isTooLong;
 
   return (
-    <div className="w-full bg-slate-950/90 backdrop-blur-md border-t border-slate-800/80 p-2.5 sm:p-4">
+    <div className="w-full bg-white/90 backdrop-blur-md border-t border-slate-200/90 p-2.5 sm:p-4">
       <div className="max-w-4xl mx-auto">
-        <div className="relative flex items-end gap-2 bg-slate-900 border border-slate-800 rounded-2xl p-1.5 sm:p-2 focus-within:border-indigo-500/70 focus-within:ring-2 focus-within:ring-indigo-500/20 transition-all shadow-xl">
+        <div className="relative flex items-end gap-2 bg-slate-50 border border-slate-200/90 rounded-2xl p-1.5 sm:p-2 focus-within:bg-white focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/20 transition-all shadow-sm">
           <textarea
             ref={textareaRef}
             value={content}
@@ -71,7 +71,7 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
             placeholder={placeholder}
             rows={1}
             maxLength={MAX_CHAR_COUNT + 100}
-            className="flex-1 max-h-44 min-h-[44px] bg-transparent border-none text-sm text-slate-100 placeholder-slate-500 px-3 py-2.5 focus:outline-none resize-none leading-relaxed disabled:opacity-50 selection:bg-indigo-600"
+            className="flex-1 max-h-44 min-h-[44px] bg-transparent border-none text-sm text-slate-800 placeholder-slate-400 px-3 py-2.5 focus:outline-none resize-none leading-relaxed disabled:opacity-50 selection:bg-indigo-600"
           />
 
           <div className="flex items-center gap-2 flex-shrink-0 mb-0.5">
@@ -79,10 +79,10 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
               <span
                 className={`text-[10px] tabular-nums transition-colors hidden sm:inline ${
                   isTooLong
-                    ? "text-rose-400 font-bold"
+                    ? "text-rose-500 font-bold"
                     : content.length > MAX_CHAR_COUNT * 0.8
-                    ? "text-amber-400"
-                    : "text-slate-500"
+                    ? "text-amber-500"
+                    : "text-slate-400"
                 }`}
               >
                 {content.length}/{MAX_CHAR_COUNT}
@@ -95,8 +95,8 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
               disabled={!canSubmit}
               className={`min-w-[44px] min-h-[44px] rounded-xl flex items-center justify-center transition-all flex-shrink-0 ${
                 canSubmit
-                  ? "bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/30 cursor-pointer active:scale-95"
-                  : "bg-slate-800 text-slate-500 cursor-not-allowed opacity-60"
+                  ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm shadow-indigo-600/30 cursor-pointer active:scale-95"
+                  : "bg-slate-200 text-slate-400 cursor-not-allowed opacity-60"
               }`}
               aria-label="Send message"
               title={
@@ -108,7 +108,7 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
               }
             >
               {isLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin text-slate-200" />
+                <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
               ) : (
                 <SendHorizontal className="w-4 h-4" />
               )}
@@ -118,12 +118,12 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
 
         <div className="flex items-center justify-between px-2 mt-1.5">
           <p className="text-[11px] text-slate-400 truncate">
-            NexaMind AI Cascade Engine • Press Enter to send, Shift+Enter for new line
+            Lumina AI Engine • Press Enter to send, Shift+Enter for new line
           </p>
           {content.length > 0 && (
             <span
               className={`text-[10px] tabular-nums sm:hidden ${
-                isTooLong ? "text-rose-400 font-bold" : "text-slate-400"
+                isTooLong ? "text-rose-500 font-bold" : "text-slate-400"
               }`}
             >
               {content.length}/{MAX_CHAR_COUNT}
