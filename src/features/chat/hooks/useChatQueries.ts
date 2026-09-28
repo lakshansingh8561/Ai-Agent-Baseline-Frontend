@@ -31,16 +31,40 @@ export const useConversations = () => {
 };
 
 export const useMessages = (conversationId?: string) => {
+  const queryClient = useQueryClient();
+
   return useQuery<SafeMessage[], Error>({
     queryKey: chatKeys.messages(conversationId),
-    queryFn: () => {
+    queryFn: async () => {
       if (!conversationId) {
         throw new Error("conversationId is required");
       }
-      return fetchMessages(conversationId);
+      const serverMessages = await fetchMessages(conversationId);
+      // Preserve any pending optimistic messages that haven't been finalized yet
+      const existing =
+        queryClient.getQueryData<SafeMessage[]>(
+          chatKeys.messages(conversationId)
+        ) || [];
+      const pendingOptimistic = existing.filter(
+        (m) =>
+          m.id.startsWith("temp_") &&
+          !serverMessages.some((sm) => sm.content === m.content)
+      );
+      return [...serverMessages, ...pendingOptimistic];
     },
-    enabled: Boolean(conversationId), 
-    staleTime: 0,
+    enabled: Boolean(conversationId),
+    staleTime: 1000 * 5, // 5 seconds
+    refetchInterval: (query) => {
+      const messages = query.state.data;
+      if (!messages || messages.length === 0) return false;
+      const hasGenerating = messages.some(
+        (m) =>
+          m.role === "assistant" &&
+          (m.status === "generating" || m.status === "pending")
+      );
+      return hasGenerating ? 1500 : false;
+    },
+    refetchIntervalInBackground: true,
     retry: (failureCount, error: any) => {
       if (error?.response?.status === 404 || error?.response?.status === 400) {
         return false;
@@ -57,11 +81,10 @@ export const useCreateConversation = () => {
   return useMutation<SafeConversation, Error, CreateConversationInput | undefined>({
     mutationFn: createConversation,
     onSuccess: (newConversation) => {
-      // Pre-seed the messages cache for the newly created conversation with empty array
-      // This prevents useMessages from triggering a loading spinner / unmounting messages UI
+      // Pre-seed the messages cache for the newly created conversation only if not already populated
       queryClient.setQueryData<SafeMessage[]>(
         chatKeys.messages(newConversation.id),
-        []
+        (old) => (old && old.length > 0 ? old : [])
       );
 
       // Pre-populate or update the conversations list cache so new thread appears immediately
@@ -92,7 +115,7 @@ export const useSendMessage = (conversationId?: string) => {
       if (!activeId) {
         throw new Error("No conversation selected");
       }
-      return sendMessage(activeId, { content: input.content });
+      return sendMessage(activeId, { content: input.content, file: input.file });
     },
     onSuccess: (result, variables) => {
       const activeId = variables.targetConversationId || conversationId;

@@ -1,9 +1,11 @@
 import React, { useState } from "react";
 import type { SafeMessage } from "../types/chat.types.ts";
-import { BrainCircuit, Copy, Check } from "lucide-react";
+import { BrainCircuit, Copy, Check, AlertCircle, RefreshCw } from "lucide-react";
+import { API_BASE_URL } from "../../../lib/api.ts";
 
 interface MessageItemProps {
   message: SafeMessage;
+  onRetry?: () => void;
 }
 
 /**
@@ -230,7 +232,7 @@ const FormattedAssistantMessage: React.FC<{ content: string }> = ({ content }) =
   return <div className="space-y-1 text-slate-800">{elements}</div>;
 };
 
-export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
+export const MessageItem: React.FC<MessageItemProps> = ({ message, onRetry }) => {
   const isUser = message.role === "user";
 
   const formattedTime = new Date(message.createdAt).toLocaleTimeString([], {
@@ -239,6 +241,13 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
   });
 
   if (isUser) {
+    const hasImage = Boolean(message.attachment && message.attachment.type === "image");
+    const imageUrl = message.attachment?.url
+      ? message.attachment.url.startsWith("http") || message.attachment.url.startsWith("blob:")
+        ? message.attachment.url
+        : `${API_BASE_URL}${message.attachment.url}`
+      : null;
+
     return (
       <div className="flex justify-end mb-4 px-2 sm:px-4">
         <div className="flex flex-col items-end max-w-[90%] sm:max-w-[80%] md:max-w-[70%]">
@@ -247,8 +256,93 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
             <span>•</span>
             <span>{formattedTime}</span>
           </div>
-          <div className="rounded-2xl rounded-tr-xs bg-indigo-600 px-4 py-3 text-sm text-white shadow-sm leading-relaxed whitespace-pre-wrap break-words overflow-hidden selection:bg-indigo-800">
-            {message.content}
+          <div className="rounded-2xl rounded-tr-xs bg-indigo-600 p-3 sm:p-4 text-sm text-white shadow-sm leading-relaxed whitespace-pre-wrap break-words overflow-hidden selection:bg-indigo-800 space-y-2.5">
+            {hasImage && imageUrl && (
+              <div className="rounded-xl overflow-hidden bg-black/15 border border-white/20 shadow-xs">
+                <a
+                  href={imageUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block group relative cursor-pointer"
+                  title="Click to view full image in new tab"
+                >
+                  <img
+                    src={imageUrl}
+                    alt={message.attachment?.name || "Uploaded attachment"}
+                    className="max-h-64 sm:max-h-72 w-auto max-w-full rounded-xl object-contain mx-auto transition-transform group-hover:scale-[1.02]"
+                    loading="lazy"
+                  />
+                </a>
+              </div>
+            )}
+            {message.content && (
+              <div className="leading-relaxed">
+                {message.content}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Assistant message rendering
+  const isGenerating = message.status === "generating" || message.status === "pending";
+  const isFailed = message.status === "failed";
+
+  if (isGenerating) {
+    return (
+      <div className="flex justify-start mb-6 px-2 sm:px-4">
+        <div className="flex gap-3 max-w-[98%] sm:max-w-[90%] md:max-w-[85%] w-full">
+          <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-200/70 text-indigo-600 flex items-center justify-center flex-shrink-0 mt-0.5 animate-pulse shadow-xs">
+            <BrainCircuit className="w-4 h-4" />
+          </div>
+          <div className="flex-1 min-w-0 flex flex-col">
+            <div className="flex items-center gap-1.5 mb-1.5 text-[11px] text-slate-400">
+              <span className="font-semibold text-indigo-600">Lumina AI</span>
+              <span>•</span>
+              <span className="text-slate-500">Generating response...</span>
+            </div>
+            <div className="rounded-2xl rounded-tl-xs bg-white border border-slate-200/90 px-4 py-3.5 shadow-xs flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-indigo-500 animate-ping" />
+              <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
+              <span className="w-2 h-2 rounded-full bg-indigo-300 animate-pulse" />
+              <span className="text-xs text-slate-500 ml-1">Thinking...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isFailed) {
+    return (
+      <div className="flex justify-start mb-6 px-2 sm:px-4">
+        <div className="flex gap-3 max-w-[98%] sm:max-w-[90%] md:max-w-[85%] w-full">
+          <div className="w-8 h-8 rounded-xl bg-rose-50 border border-rose-200/70 text-rose-600 flex items-center justify-center flex-shrink-0 mt-0.5 shadow-xs">
+            <AlertCircle className="w-4 h-4" />
+          </div>
+          <div className="flex-1 min-w-0 flex flex-col">
+            <div className="flex items-center gap-1.5 mb-1.5 text-[11px] text-slate-400">
+              <span className="font-semibold text-rose-600">Lumina AI</span>
+              <span>•</span>
+              <span className="text-rose-500">Generation failed</span>
+            </div>
+            <div className="rounded-2xl rounded-tl-xs bg-white border border-rose-200/90 px-4 py-3.5 shadow-xs flex flex-col gap-2.5">
+              <p className="text-xs text-slate-600">
+                {message.errorMessage || "Lumina AI was unable to complete the response due to high demand or network timeout."}
+              </p>
+              {onRetry && (
+                <button
+                  type="button"
+                  onClick={onRetry}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer w-fit active:scale-95"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  <span>Retry response</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>

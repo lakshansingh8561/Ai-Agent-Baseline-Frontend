@@ -84,6 +84,18 @@ export const ChatPage: React.FC = () => {
   const isTokenExhausted =
     (tokenData !== undefined && tokenData.balance <= 0) || isTokenLimitError;
 
+  const hasServerGeneratingMessage = (messages ?? []).some(
+    (m) =>
+      m.role === "assistant" &&
+      (m.status === "generating" || m.status === "pending")
+  );
+
+  const isGenerating =
+    Boolean(pendingUserContent) ||
+    (sendMessageMutation.isPending &&
+      activeConversationIdRef.current === conversationId) ||
+    hasServerGeneratingMessage;
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const prevConversationIdRef = useRef(conversationId);
   const prevResetDraftRef = useRef(location.state?.resetDraft);
@@ -144,7 +156,7 @@ export const ChatPage: React.FC = () => {
 
   useEffect(() => {
     scrollToBottom("auto");
-  }, [messages?.length, pendingUserContent]);
+  }, [messages?.length, pendingUserContent, isGenerating]);
 
   // Synchronize and resolve actual title for active conversation if it shows "New Chat" or "Untitled"
   useEffect(() => {
@@ -190,6 +202,7 @@ export const ChatPage: React.FC = () => {
 
   const handleSendMessage = async (
     content: string,
+    file?: File | null,
     onSuccessCallback?: () => void
   ) => {
     if (isTokenExhausted) {
@@ -204,9 +217,20 @@ export const ChatPage: React.FC = () => {
       return;
     }
 
+    const resolvedContent = content.trim() || (file ? "Describe this image." : "");
     setErrorMessage(null);
     setIsTokenLimitError(false);
-    setPendingUserContent(content);
+    setPendingUserContent(resolvedContent);
+
+    const optimisticAttachment = file
+      ? {
+          type: "image" as const,
+          url: URL.createObjectURL(file),
+          mimeType: file.type,
+          name: file.name,
+          size: file.size,
+        }
+      : undefined;
 
     if (!conversationId) {
       // Draft flow: generate unique request ID
@@ -215,7 +239,10 @@ export const ChatPage: React.FC = () => {
       isTransitioningFromDraftRef.current = true;
 
       try {
-        const title = deriveConversationTitle(content);
+        const title = file && !content.trim()
+          ? `Image: ${file.name.slice(0, 30)}`
+          : deriveConversationTitle(resolvedContent);
+
         const newConversation = await createConversationMutation.mutateAsync({
           title,
         });
@@ -232,13 +259,13 @@ export const ChatPage: React.FC = () => {
 
         const targetConversationId = newConversation.id;
 
-        // Optimistically populate conversation message cache so the prompt is immediately visible
-        // even if user navigates to New Chat and immediately re-opens this conversation
+        // Optimistically populate conversation message cache so prompt + image are immediately visible
         const optimisticMsg: SafeMessage = {
           id: `temp_${Date.now()}`,
           conversationId: targetConversationId,
           role: "user",
-          content,
+          content: resolvedContent,
+          attachment: optimisticAttachment,
           createdAt: new Date().toISOString(),
         };
         queryClient.setQueryData<SafeMessage[]>(
@@ -252,7 +279,7 @@ export const ChatPage: React.FC = () => {
 
         // Send message to the newly created conversation
         sendMessageMutation.mutate(
-          { content, targetConversationId },
+          { content: resolvedContent, file, targetConversationId },
           {
             onSuccess: () => {
               isTransitioningFromDraftRef.current = false;
@@ -311,7 +338,8 @@ export const ChatPage: React.FC = () => {
       id: `temp_${Date.now()}`,
       conversationId: targetConversationId,
       role: "user",
-      content,
+      content: resolvedContent,
+      attachment: optimisticAttachment,
       createdAt: new Date().toISOString(),
     };
     queryClient.setQueryData<SafeMessage[]>(
@@ -320,7 +348,7 @@ export const ChatPage: React.FC = () => {
     );
 
     sendMessageMutation.mutate(
-      { content, targetConversationId },
+      { content: resolvedContent, file, targetConversationId },
       {
         onSuccess: () => {
           // STALE-REQUEST ISOLATION:
@@ -411,9 +439,6 @@ export const ChatPage: React.FC = () => {
   const messageList: SafeMessage[] = messages ?? [];
   const hasMessages = messageList.length > 0;
   const lastMessage = hasMessages ? messageList[messageList.length - 1] : null;
-  const isGenerating =
-    Boolean(pendingUserContent) ||
-    (sendMessageMutation.isPending && activeConversationIdRef.current === conversationId);
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-100/60">
@@ -493,76 +518,69 @@ export const ChatPage: React.FC = () => {
 
       {/* Main Message Stream */}
       <div className="flex-1 overflow-y-auto p-2 sm:p-4 md:p-6 space-y-1">
-        {!conversationId ? (
-          // DRAFT VIEW: Only on /app without conversationId
-          pendingUserContent ? (
-            <>
-              {/* Temporary pending user message */}
-              <div className="flex justify-end mb-4 px-2 sm:px-4 opacity-80">
-                <div className="flex flex-col items-end max-w-[85%] sm:max-w-[75%]">
-                  <div className="flex items-center gap-1.5 mb-1 text-[11px] text-slate-400">
-                    <span className="font-medium text-slate-600">You</span>
-                    <span>•</span>
-                    <span>Sending...</span>
-                  </div>
-                  <div className="rounded-2xl rounded-tr-xs bg-indigo-600 px-4 py-3 text-sm text-white shadow-sm leading-relaxed whitespace-pre-wrap break-words">
-                    {pendingUserContent}
-                  </div>
-                </div>
-              </div>
-
-              {/* Assistant Generating Indicator */}
-              <div className="flex justify-start mb-6 px-2 sm:px-4">
-                <div className="flex gap-3 max-w-[85%]">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-200/70 text-indigo-600 flex items-center justify-center flex-shrink-0 mt-0.5 animate-pulse shadow-xs">
-                    <BrainCircuit className="w-4 h-4" />
-                  </div>
-                  <div className="flex flex-col">
-                    <div className="flex items-center gap-1.5 mb-1.5 text-[11px] text-slate-400">
-                      <span className="font-semibold text-indigo-600">Lumina AI</span>
-                      <span>•</span>
-                      <span className="text-slate-500">Generating response...</span>
-                    </div>
-                    <div className="rounded-2xl rounded-tl-xs bg-white border border-slate-200/80 px-4 py-3.5 text-sm text-slate-700 shadow-xs flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-indigo-500 animate-ping" />
-                      <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
-                      <span className="w-2 h-2 rounded-full bg-indigo-300 animate-pulse" />
-                      <span className="text-xs text-slate-500 ml-1">Thinking...</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div ref={messagesEndRef} />
-            </>
-          ) : (
-            <EmptyChatView
-              onSelectPrompt={(prompt) => {
-                if (isTokenExhausted) {
-                  setIsTokenLimitError(true);
-                  setErrorMessage(
-                    "Your token balance is exhausted. Please upgrade your plan to Pro or Plus to continue chatting."
-                  );
-                  return;
-                }
-                handleSendMessage(prompt);
-              }}
-            />
-          )
-        ) : isLoadingMessages && !hasMessages ? (
-          // CONVERSATION LOADING VIEW (when first mounting an existing conversation)
+        {!conversationId && !pendingUserContent ? (
+          <EmptyChatView
+            onSelectPrompt={(prompt) => {
+              if (isTokenExhausted) {
+                setIsTokenLimitError(true);
+                setErrorMessage(
+                  "Your token balance is exhausted. Please upgrade your plan to Pro or Plus to continue chatting."
+                );
+                return;
+              }
+              handleSendMessage(prompt);
+            }}
+          />
+        ) : isLoadingMessages && !hasMessages && !pendingUserContent ? (
+          // CONVERSATION LOADING VIEW (when first mounting an existing conversation without draft)
           <div className="h-full flex flex-col items-center justify-center text-slate-500 py-16">
             <Loader2 className="w-8 h-8 animate-spin text-indigo-600 mb-3" />
             <p className="text-xs font-medium">Loading message history...</p>
           </div>
         ) : (
-          // ACTIVE CONVERSATION VIEW (Never renders EmptyChatView on a real conversation)
+          // ACTIVE OR STREAMING CONVERSATION VIEW
           <>
-            {messageList.map((msg) => (
-              <MessageItem key={msg.id} message={msg} />
-            ))}
+            {messageList.map((msg, idx) => {
+              let retryHandler: (() => void) | undefined = undefined;
+              if (msg.role === "assistant" && msg.status === "failed") {
+                const prevUserMsg = messageList
+                  .slice(0, idx)
+                  .reverse()
+                  .find((m) => m.role === "user");
+                if (prevUserMsg) {
+                  retryHandler = () => handleSendMessage(prevUserMsg.content);
+                }
+              }
+              return (
+                <MessageItem
+                  key={msg.id}
+                  message={msg}
+                  onRetry={retryHandler}
+                />
+              );
+            })}
 
-            {/* Assistant Generating Indicator */}
-            {isGenerating && (
+            {/* Pending User Message while response is generating if not already in messageList */}
+            {pendingUserContent &&
+              !messageList.some(
+                (m) => m.role === "user" && m.content === pendingUserContent
+              ) && (
+                <div className="flex justify-end mb-4 px-2 sm:px-4">
+                  <div className="flex flex-col items-end max-w-[90%] sm:max-w-[80%] md:max-w-[70%]">
+                    <div className="flex items-center gap-1.5 mb-1 text-[11px] text-slate-400">
+                      <span className="font-semibold text-slate-600">You</span>
+                      <span>•</span>
+                      <span>Sending...</span>
+                    </div>
+                    <div className="rounded-2xl rounded-tr-xs bg-indigo-600 px-4 py-3 text-sm text-white shadow-sm leading-relaxed whitespace-pre-wrap break-words">
+                      {pendingUserContent}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+            {/* Assistant Generating Indicator (only shown during local mutation pending before server placeholder appears) */}
+            {isGenerating && !hasServerGeneratingMessage && (
               <div className="flex justify-start mb-6 px-2 sm:px-4">
                 <div className="flex gap-3 max-w-[85%]">
                   <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-200/70 text-indigo-600 flex items-center justify-center flex-shrink-0 mt-0.5 animate-pulse shadow-xs">
@@ -585,8 +603,8 @@ export const ChatPage: React.FC = () => {
               </div>
             )}
 
-            {/* Interrupted Response Notice with Retry */}
-            {!isGenerating && hasMessages && lastMessage?.role === "user" && (
+            {/* Interrupted Response Notice with Retry (only for ancient unhandled user messages where no assistant message was ever created and nothing is generating) */}
+            {!isGenerating && !hasServerGeneratingMessage && hasMessages && lastMessage?.role === "user" && (
               <div className="flex justify-start mb-6 px-2 sm:px-4">
                 <div className="flex gap-3 max-w-[85%]">
                   <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200/70 text-amber-600 flex items-center justify-center flex-shrink-0 mt-0.5 shadow-xs">

@@ -21,6 +21,7 @@ import {
 import { PLAN_CONFIGS, ORDERED_PLANS, type PlanConfigItem } from "../plan.config.ts";
 import { PlanCard } from "../components/PlanCard.tsx";
 import { SuccessCelebrationModal } from "../components/SuccessCelebrationModal.tsx";
+import { UpgradeConfirmationModal } from "../components/UpgradeConfirmationModal.tsx";
 import type { SubscriptionPlan } from "../subscription.types.ts";
 
 export const BillingPage: React.FC = () => {
@@ -30,6 +31,8 @@ export const BillingPage: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<"personal" | "business">("personal");
   const [selectedTarget, setSelectedTarget] = useState<"plus" | "pro" | null>(null);
+  const [confirmingUpgrade, setConfirmingUpgrade] = useState<"plus" | "pro" | null>(null);
+  const [isDirectUpgrading, setIsDirectUpgrading] = useState(false);
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
 
@@ -56,21 +59,21 @@ export const BillingPage: React.FC = () => {
   // Determine if payment is confirmed by backend
   const isConfirmed = currentPlan === "plus" || currentPlan === "pro";
 
-  // Auto-trigger celebratory animation modal on upgrade or return
+  // Auto-trigger celebratory animation modal ONLY on actual checkout return or explicit celebrate query
   useEffect(() => {
-    const userIdentifier = user?.id || user?.email;
-    if (currentPlan === "free" || !userIdentifier) return;
+    if (!isCheckoutSuccess || !checkoutId) return;
 
-    const storageKey = `celebrated_${userIdentifier}_${currentPlan}`;
+    const storageKey = `celebrated_checkout_${checkoutId}`;
     const alreadyCelebrated = localStorage.getItem(storageKey);
 
-    if (isCheckoutSuccess || !alreadyCelebrated || searchParams.get("celebrate") === "true") {
+    if (!alreadyCelebrated || searchParams.get("celebrate") === "true") {
       const timer = setTimeout(() => {
         setShowCelebration(true);
+        localStorage.setItem(storageKey, "true");
       }, 80);
       return () => clearTimeout(timer);
     }
-  }, [currentPlan, user?.id, user?.email, isCheckoutSuccess, searchParams]);
+  }, [isCheckoutSuccess, checkoutId, searchParams]);
 
   const confirmedCheckoutIdRef = useRef<string | null>(null);
 
@@ -116,14 +119,18 @@ export const BillingPage: React.FC = () => {
     handleDismissSuccess();
   };
 
-  const handleUpgrade = async (targetPlan: "plus" | "pro") => {
+  // Execute upgrade (either direct prorated or checkout redirect)
+  const executeUpgrade = async (targetPlan: "plus" | "pro") => {
     setErrorNotice(null);
     setSelectedTarget(targetPlan);
+    setIsDirectUpgrading(true);
 
     try {
       const result = await createCheckoutMutation.mutateAsync(targetPlan);
       if (result?.upgradedDirectly) {
+        setConfirmingUpgrade(null);
         setSelectedTarget(null);
+        setIsDirectUpgrading(false);
         setShowCelebration(true);
         void Promise.allSettled([
           refetchSubscription(),
@@ -131,14 +138,29 @@ export const BillingPage: React.FC = () => {
         ]);
       }
     } catch (err: any) {
-      console.error("Failed to initiate checkout:", err);
+      console.error("Failed to process upgrade:", err);
       const apiMessage =
         err?.response?.data?.message ||
         err?.message ||
-        "Failed to redirect to checkout. Please try again.";
+        "Failed to process upgrade. Please try again.";
       setErrorNotice(apiMessage);
       setSelectedTarget(null);
+      setIsDirectUpgrading(false);
+      setConfirmingUpgrade(null);
     }
+  };
+
+  const handleUpgrade = (targetPlan: "plus" | "pro") => {
+    setErrorNotice(null);
+
+    // If already on Pro and upgrading to Plus, show confirmation dialog first!
+    if (currentPlan === "pro" && targetPlan === "plus") {
+      setConfirmingUpgrade("plus");
+      return;
+    }
+
+    // Otherwise (Free -> Pro or Free -> Plus), proceed with standard checkout
+    void executeUpgrade(targetPlan);
   };
 
   // Merge authoritative backend catalog into PLAN_CONFIGS
@@ -171,6 +193,21 @@ export const BillingPage: React.FC = () => {
 
   return (
     <div className="flex-1 h-full overflow-y-auto bg-slate-50/60 select-text">
+      {/* Upgrade Confirmation Modal for Prorated Plan Upgrade */}
+      {confirmingUpgrade && (
+        <UpgradeConfirmationModal
+          isOpen={Boolean(confirmingUpgrade)}
+          targetPlan={confirmingUpgrade}
+          isLoading={isDirectUpgrading}
+          onConfirm={() => void executeUpgrade(confirmingUpgrade)}
+          onClose={() => {
+            if (!isDirectUpgrading) {
+              setConfirmingUpgrade(null);
+            }
+          }}
+        />
+      )}
+
       {/* Animated Post-Checkout Celebration Modal & Confetti */}
       {showCelebration && (currentPlan === "pro" || currentPlan === "plus") && (
         <SuccessCelebrationModal
