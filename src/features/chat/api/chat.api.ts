@@ -38,9 +38,26 @@ export const sendMessage = async (
   conversationId: string,
   input: SendMessageInput
 ): Promise<{ userMessage: SafeMessage; assistantMessage: SafeMessage }> => {
+  if (input.file) {
+    const formData = new FormData();
+    formData.append("content", input.content || "");
+    formData.append("image", input.file);
+
+    const response = await api.post<SendMessageResponse>(
+      `/api/chat/conversations/${conversationId}/messages`,
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      }
+    );
+    return response.data.data;
+  }
+
   const response = await api.post<SendMessageResponse>(
     `/api/chat/conversations/${conversationId}/messages`,
-    input
+    { content: input.content }
   );
   return response.data.data;
 };
