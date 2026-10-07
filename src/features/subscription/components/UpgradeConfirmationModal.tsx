@@ -2,18 +2,18 @@ import { Crown, Sparkles, Zap, ShieldCheck, X, Loader2, Check } from "lucide-rea
 
 interface UpgradeConfirmationModalProps {
   isOpen: boolean;
-  targetPlan: "plus" | "pro";
+  targetPlan: "plus" | "pro";  
   isLoading: boolean;
-  onConfirm: () => void;
+  onConfirm: () => void;      
   onClose: () => void;
-}
+}    
 
-export const UpgradeConfirmationModal: React.FC<UpgradeConfirmationModalProps> = ({
+export const UpgradeConfirmationModal: React.FC<UpgradeConfirmationModalProps> = ({    
   isOpen,
-  targetPlan,
-  isLoading,
-  onConfirm,
-  onClose,
+  targetPlan,      
+  isLoading,   
+  onConfirm,     
+  onClose,     
 }) => {
   if (!isOpen) return null;
 
