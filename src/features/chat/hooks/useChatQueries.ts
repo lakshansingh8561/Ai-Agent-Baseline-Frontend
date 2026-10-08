@@ -7,6 +7,7 @@ import {
   deleteConversation,
 } from "../api/chat.api.ts";
 import { tokenKeys } from "../../token/index.ts";
+import { removeStoredDerivedTitle } from "../utils/title.utils.ts";
 
 import type {
   SafeConversation,
@@ -160,19 +161,40 @@ export const useSendMessage = (conversationId?: string) => {
 export const useDeleteConversation = () => {
   const queryClient = useQueryClient();
 
-  return useMutation<void, Error, string>({
+  return useMutation<void, Error, string, { previousConversations?: SafeConversation[] }>({
     mutationFn: (conversationId: string) => deleteConversation(conversationId),
-    onSuccess: (_, conversationId) => {
-      // Optimistically remove deleted conversation from conversation list
+    onMutate: async (conversationId: string) => {
+      // 1. Cancel any outgoing refetches to avoid overwriting our optimistic update
+      await queryClient.cancelQueries({ queryKey: chatKeys.conversations() });
+
+      // 2. Snapshot the current conversations list
+      const previousConversations = queryClient.getQueryData<SafeConversation[]>(
+        chatKeys.conversations()
+      );
+
+      // 3. Optimistically remove the conversation from cache immediately
       queryClient.setQueryData<SafeConversation[]>(
         chatKeys.conversations(),
         (old = []) => old.filter((conv) => conv.id !== conversationId)
       );
 
-      // Remove messages query cache for this conversation
+      // 4. Remove cached messages and stored title
       queryClient.removeQueries({ queryKey: chatKeys.messages(conversationId), exact: true });
+      removeStoredDerivedTitle(conversationId);
 
-      // Invalidate conversation list to synchronize
+      return { previousConversations };
+    },
+    onError: (_err, _conversationId, context) => {
+      // Rollback on failure
+      if (context?.previousConversations) {
+        queryClient.setQueryData<SafeConversation[]>(
+          chatKeys.conversations(),
+          context.previousConversations
+        );
+      }
+    },
+    onSettled: (_, __, conversationId) => {
+      queryClient.removeQueries({ queryKey: chatKeys.messages(conversationId), exact: true });
       queryClient.invalidateQueries({ queryKey: chatKeys.conversations(), exact: true });
     },
   });

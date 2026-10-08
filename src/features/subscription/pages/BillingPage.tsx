@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useSearchParams, useNavigate, useOutletContext } from "react-router-dom";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -10,6 +10,7 @@ import {
   RefreshCw,
   Loader2,
   Sparkles,
+  PanelLeftOpen,
 } from "lucide-react";
 import { useAuth } from "../../auth/useAuth.ts";
 import {
@@ -191,8 +192,15 @@ export const BillingPage: React.FC = () => {
     return base;
   }, [catalogPlans]);
 
+  const outletContext = useOutletContext<{
+    sidebarOpen: boolean;
+    toggleSidebar: () => void;
+  } | undefined>();
+  const sidebarOpen = outletContext?.sidebarOpen ?? true;
+  const toggleSidebar = outletContext?.toggleSidebar;
+
   return (
-    <div className="flex-1 h-full overflow-y-auto bg-slate-50/60 select-text">
+    <div className="flex-1 h-full overflow-y-auto bg-[var(--bg-primary)] text-[var(--text-primary)] select-text transition-colors">
       {/* Upgrade Confirmation Modal for Prorated Plan Upgrade */}
       {confirmingUpgrade && (
         <UpgradeConfirmationModal
@@ -220,19 +228,32 @@ export const BillingPage: React.FC = () => {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
         {/* Navigation & Back Button */}
         <div className="mb-6 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => navigate("/app")}
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 transition-colors cursor-pointer"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back to Chat</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {!sidebarOpen && toggleSidebar && (
+              <button
+                type="button"
+                onClick={toggleSidebar}
+                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-800 transition-colors cursor-pointer"
+                title="Open sidebar (Ctrl+B)"
+                aria-label="Open sidebar"
+              >
+                <PanelLeftOpen className="w-4 h-4" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => navigate("/app")}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back to Chat</span>
+            </button>
+          </div>
 
           {/* Active status indicator */}
-          <div className="flex items-center gap-2 text-xs text-slate-500">
+          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
             <span>Your current plan:</span>
-            <span className="px-2.5 py-0.5 rounded-md font-bold uppercase text-[11px] bg-indigo-50 text-indigo-700 border border-indigo-200/80">
+            <span className="px-2.5 py-0.5 rounded-md font-bold uppercase text-[11px] bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800">
               {currentPlan}
             </span>
             {currentPlan !== "free" && (
@@ -329,23 +350,23 @@ export const BillingPage: React.FC = () => {
 
         {/* Header Title Section */}
         <div className="text-center max-w-2xl mx-auto mb-8 sm:mb-10">
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-slate-900 tracking-tight">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight">
             Upgrade your plan
           </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-2.5 leading-relaxed">
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-2.5 leading-relaxed">
             Choose the plan that fits your agentic workflow. Unlock higher token allowances,
             priority responses, and intelligent tools.
           </p>
 
           {/* Segmented Pill Selector: Personal vs Business */}
-          <div className="inline-flex p-1 rounded-xl bg-slate-200/70 border border-slate-200/90 mt-6 shadow-inner">
+          <div className="inline-flex p-1 rounded-xl bg-slate-200/70 dark:bg-slate-800/80 border border-slate-200/90 dark:border-slate-700/80 mt-6 shadow-inner">
             <button
               type="button"
               onClick={() => setActiveTab("personal")}
               className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
                 activeTab === "personal"
-                  ? "bg-white text-slate-900 shadow-xs"
-                  : "text-slate-600 hover:text-slate-900"
+                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
               }`}
             >
               <User className="w-3.5 h-3.5" />
@@ -356,8 +377,8 @@ export const BillingPage: React.FC = () => {
               onClick={() => setActiveTab("business")}
               className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
                 activeTab === "business"
-                  ? "bg-white text-slate-900 shadow-xs"
-                  : "text-slate-600 hover:text-slate-900"
+                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
               }`}
             >
               <Building2 className="w-3.5 h-3.5" />

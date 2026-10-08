@@ -1,12 +1,15 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "./useAuth.ts";
 import { AxiosError } from "axios";
 import type { ApiErrorResponse } from "../../types/auth.ts";
-import { BrainCircuit, User as UserIcon, Mail, Lock, AlertCircle, Loader2, Eye, EyeOff, CheckCircle2 } from "lucide-react";
+import { BrainCircuit, User as UserIcon, Mail, Lock, AlertCircle, Loader2, Eye, EyeOff, Moon, Sun, CheckCircle2 } from "lucide-react";
+import { useTheme } from "../../lib/theme.tsx";
+import { api } from "../../lib/api.ts";
 
 export const RegisterPage: React.FC = () => {
   const { register } = useAuth();
+  const { actualTheme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   const [name, setName] = useState("");
@@ -14,8 +17,27 @@ export const RegisterPage: React.FC = () => {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSlowWarning, setShowSlowWarning] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
+
+  // Silently pre-warm backend on page load
+  useEffect(() => {
+    api.get("/api/health").catch(() => {});
+  }, []);
+
+  // Display status notice if cold start takes more than 3.5 seconds
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    if (isSubmitting) {
+      timer = setTimeout(() => {
+        setShowSlowWarning(true);
+      }, 3500);
+    } else {
+      setShowSlowWarning(false);
+    }
+    return () => clearTimeout(timer);
+  }, [isSubmitting]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,19 +106,30 @@ export const RegisterPage: React.FC = () => {
   const isNameValid = name.trim().length >= 2;
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 text-slate-800 selection:bg-indigo-500 selection:text-white">
+    <div className="min-h-screen bg-[var(--bg-primary)] flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 text-[var(--text-primary)] transition-colors relative">
+      <div className="absolute top-4 right-4">
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className="p-2 rounded-xl text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs cursor-pointer transition-colors"
+          title="Toggle theme"
+        >
+          {actualTheme === "dark" ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-600" />}
+        </button>
+      </div>
+
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-        <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-indigo-50 border border-indigo-200/80 text-indigo-600 mb-4 shadow-sm ring-1 ring-indigo-500/10">
+        <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-indigo-50 dark:bg-indigo-950/70 border border-indigo-200/80 dark:border-indigo-800/80 text-indigo-600 dark:text-indigo-400 mb-4 shadow-sm ring-1 ring-indigo-500/10">
           <BrainCircuit className="w-9 h-9" />
         </div>
-        <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Create an Account</h1>
-        <p className="mt-2 text-sm text-slate-500 max-w-xs mx-auto">
+        <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">Create an Account</h1>
+        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400 max-w-xs mx-auto">
           Get started with Lumina AI to experience intelligent autonomous AI workflows
         </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white border border-slate-200/90 py-8 px-5 shadow-xl rounded-2xl sm:px-10">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 py-8 px-5 shadow-xl rounded-2xl sm:px-10">
           {errorMessage && (
             <div className="mb-6 rounded-xl bg-rose-50 border border-rose-200 p-4 text-rose-800 text-xs sm:text-sm flex items-start gap-3 animate-in fade-in duration-200">
               <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-rose-600" />
@@ -123,8 +156,8 @@ export const RegisterPage: React.FC = () => {
                   onChange={(e) => setName(e.target.value)}
                   disabled={isSubmitting}
                   placeholder="Jane Doe"
-                  className={`block w-full pl-10 pr-3 py-2.5 bg-slate-50 border rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 focus:bg-white disabled:opacity-50 transition-all ${
-                    fieldErrors.name ? "border-rose-400" : "border-slate-200 focus:border-indigo-500"
+                  className={`block w-full pl-10 pr-3 py-2.5 bg-slate-50 dark:bg-slate-800/80 border rounded-xl text-slate-900 dark:text-slate-100 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-800 disabled:opacity-50 transition-all ${
+                    fieldErrors.name ? "border-rose-400" : "border-slate-200 dark:border-slate-700 focus:border-indigo-500"
                   }`}
                 />
               </div>
@@ -136,7 +169,7 @@ export const RegisterPage: React.FC = () => {
             </div>
 
             <div>
-              <label htmlFor="email" className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+              <label htmlFor="email" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                 Email address
               </label>
               <div className="relative">
@@ -153,8 +186,8 @@ export const RegisterPage: React.FC = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={isSubmitting}
                   placeholder="you@example.com"
-                  className={`block w-full pl-10 pr-3 py-2.5 bg-slate-50 border rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 focus:bg-white disabled:opacity-50 transition-all ${
-                    fieldErrors.email ? "border-rose-400" : "border-slate-200 focus:border-indigo-500"
+                  className={`block w-full pl-10 pr-3 py-2.5 bg-slate-50 dark:bg-slate-800/80 border rounded-xl text-slate-900 dark:text-slate-100 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-800 disabled:opacity-50 transition-all ${
+                    fieldErrors.email ? "border-rose-400" : "border-slate-200 dark:border-slate-700 focus:border-indigo-500"
                   }`}
                 />
               </div>
@@ -164,7 +197,7 @@ export const RegisterPage: React.FC = () => {
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+              <label htmlFor="password" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
                 Password
               </label>
               <div className="relative">
@@ -181,8 +214,8 @@ export const RegisterPage: React.FC = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isSubmitting}
                   placeholder="At least 8 characters"
-                  className={`block w-full pl-10 pr-10 py-2.5 bg-slate-50 border rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 focus:bg-white disabled:opacity-50 transition-all ${
-                    fieldErrors.password ? "border-rose-400" : "border-slate-200 focus:border-indigo-500"
+                  className={`block w-full pl-10 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800/80 border rounded-xl text-slate-900 dark:text-slate-100 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-800 disabled:opacity-50 transition-all ${
+                    fieldErrors.password ? "border-rose-400" : "border-slate-200 dark:border-slate-700 focus:border-indigo-500"
                   }`}
                 />
                 <button
@@ -226,6 +259,11 @@ export const RegisterPage: React.FC = () => {
                   <span>Create account</span>
                 )}
               </button>
+              {showSlowWarning && (
+                <p className="mt-2 text-center text-xs text-amber-600 dark:text-amber-400 animate-in fade-in duration-300">
+                  Waking up cloud server instance... this may take a moment on first visit.
+                </p>
+              )}
             </div>
           </form>
 

@@ -52,6 +52,14 @@ export const setStoredDerivedTitle = (conversationId: string, title: string): vo
   }
 };
 
+export const removeStoredDerivedTitle = (conversationId: string): void => {
+  try {
+    localStorage.removeItem(`${TITLE_STORAGE_KEY_PREFIX}${conversationId}`);
+  } catch {
+    // Ignore localStorage errors
+  }
+};
+
 export const isLegacyTitle = (title?: string | null): boolean => {
   return title === "New Chat" || title === "Untitled";
 };

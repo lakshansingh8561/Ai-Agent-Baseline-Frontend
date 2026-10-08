@@ -1,74 +1,77 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 import type { SafeMessage } from "../types/chat.types.ts";
-import { BrainCircuit, Copy, Check, AlertCircle, RefreshCw } from "lucide-react";
+import { highlightCode } from "../utils/syntax.utils.ts";
+import {
+  BrainCircuit,
+  Copy,
+  Check,
+  AlertCircle,
+  RefreshCw,
+  Edit2,
+  Send,
+  Sparkles,
+  ExternalLink,
+  Code2,
+} from "lucide-react";
 import { API_BASE_URL } from "../../../lib/api.ts";
 
 interface MessageItemProps {
   message: SafeMessage;
   onRetry?: () => void;
+  onEditPrompt?: (newContent: string) => void;
+  onRegenerate?: () => void;
 }
 
 /**
- * Renders inline text with support for inline code `code` and bold **text**.
- */
-const renderInlineText = (text: string): React.ReactNode => {
-  // Regex to split by inline code `...` and bold **...**
-  const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g);
-
-  return parts.map((part, index) => {
-    if (part.startsWith("`") && part.endsWith("`") && part.length > 2) {
-      return (
-        <code
-          key={index}
-          className="px-1.5 py-0.5 rounded-md bg-slate-100 border border-slate-300/80 font-mono text-xs text-indigo-700 break-all"
-        >
-          {part.slice(1, -1)}
-        </code>
-      );
-    }
-    if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
-      return (
-        <strong key={index} className="font-semibold text-slate-900">
-          {part.slice(2, -2)}
-        </strong>
-      );
-    }
-    return <span key={index}>{part}</span>;
-  });
-};
-
-/**
- * Formatted code block with copy button and language badge.
+ * ChatGPT-styled CodeBlock component with Prism.js syntax highlighting and dark background.
  */
 const CodeBlock: React.FC<{ language: string; code: string }> = ({ language, code }) => {
   const [copied, setCopied] = useState(false);
 
+  const cleanCode = code.trim();
+  const highlightedHtml = useMemo(
+    () => highlightCode(cleanCode, language),
+    [cleanCode, language]
+  );
+
+  const lineCount = cleanCode.split("\n").length;
+
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(code);
+      await navigator.clipboard.writeText(cleanCode);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback if clipboard API unavailable
+      // fallback
     }
   };
 
   return (
-    <div className="my-3 rounded-xl bg-slate-900 border border-slate-800 overflow-hidden shadow-md">
-      <div className="flex items-center justify-between px-3.5 py-1.5 bg-slate-800/80 border-b border-slate-700/60 text-[11px] text-slate-400">
-        <span className="font-mono uppercase font-semibold text-slate-300">
-          {language || "code"}
-        </span>
+    <div className="my-4 rounded-2xl bg-[#f6f8fa] dark:bg-[#171717] border border-slate-200 dark:border-[#2d2d2d] overflow-hidden shadow-xs select-text text-left">
+      <div className="flex items-center justify-between px-4 py-2 bg-slate-100 dark:bg-[#212121] border-b border-slate-200 dark:border-[#2d2d2d] text-xs text-slate-600 dark:text-[#b4b4b4]">
+        <div className="flex items-center gap-2">
+          <Code2 className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
+          <span className="font-mono uppercase font-bold text-slate-700 dark:text-[#ececec] tracking-wider text-[11px]">
+            {language || "code"}
+          </span>
+          <span className="text-[10px] text-slate-400 dark:text-[#737373] font-mono">
+            {lineCount} {lineCount === 1 ? "line" : "lines"}
+          </span>
+        </div>
         <button
           type="button"
           onClick={handleCopy}
-          className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
-          title="Copy to clipboard"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white dark:bg-[#282828] hover:bg-slate-200 dark:hover:bg-[#333333] text-slate-600 dark:text-[#ececec] border border-slate-200 dark:border-[#383838] transition-colors cursor-pointer text-[11px] font-medium"
+          title="Copy code"
         >
           {copied ? (
             <>
-              <Check className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="text-emerald-400 font-medium">Copied!</span>
+              <Check className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
+              <span className="text-emerald-600 dark:text-emerald-400">Copied!</span>
             </>
           ) : (
             <>
@@ -78,206 +81,142 @@ const CodeBlock: React.FC<{ language: string; code: string }> = ({ language, cod
           )}
         </button>
       </div>
-      <pre className="p-3.5 overflow-x-auto text-xs font-mono leading-relaxed text-slate-200">
-        <code>{code}</code>
-      </pre>
+      <div className="p-4 overflow-x-auto text-xs sm:text-[13px] font-mono leading-relaxed text-slate-900 dark:text-[#ececec] custom-scrollbar">
+        <pre className="!bg-transparent !p-0 !m-0">
+          <code
+            dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+            className={`language-${language || "plain"}`}
+          />
+        </pre>
+      </div>
     </div>
   );
 };
 
-/**
- * XSS-safe markdown renderer for assistant responses.
- */
-const FormattedAssistantMessage: React.FC<{ content: string }> = ({ content }) => {
-  const lines = content.split("\n");
-  const elements: React.ReactNode[] = [];
+export const MessageItem: React.FC<MessageItemProps> = ({
+  message,
+  onRetry,
+  onEditPrompt,
+  onRegenerate,
+}) => {
+  const isUser = message.role === "user";
+  const [copied, setCopied] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(message.content || "");
 
-  let inCodeBlock = false;
-  let codeBlockLang = "";
-  let codeBlockLines: string[] = [];
-
-  let currentListItems: React.ReactNode[] = [];
-  let isOrderedList = false;
-
-  const flushList = (keyPrefix: string) => {
-    if (currentListItems.length > 0) {
-      if (isOrderedList) {
-        elements.push(
-          <ol key={`${keyPrefix}-ol`} className="list-decimal list-outside ml-5 my-2 space-y-1 text-slate-700 text-sm">
-            {currentListItems}
-          </ol>
-        );
-      } else {
-        elements.push(
-          <ul key={`${keyPrefix}-ul`} className="list-disc list-outside ml-5 my-2 space-y-1 text-slate-700 text-sm">
-            {currentListItems}
-          </ul>
-        );
-      }
-      currentListItems = [];
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(message.content || "");
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // ignore
     }
   };
 
-  lines.forEach((line, idx) => {
-    // Code block delimiters
-    if (line.trim().startsWith("```")) {
-      if (!inCodeBlock) {
-        flushList(`flush-precode-${idx}`);
-        inCodeBlock = true;
-        codeBlockLang = line.trim().slice(3).trim();
-        codeBlockLines = [];
-      } else {
-        elements.push(
-          <CodeBlock
-            key={`code-${idx}`}
-            language={codeBlockLang}
-            code={codeBlockLines.join("\n")}
-          />
-        );
-        inCodeBlock = false;
-        codeBlockLang = "";
-        codeBlockLines = [];
-      }
-      return;
+  const handleSaveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editContent.trim()) return;
+    setIsEditing(false);
+    if (onEditPrompt) {
+      onEditPrompt(editContent.trim());
     }
+  };
 
-    if (inCodeBlock) {
-      codeBlockLines.push(line);
-      return;
-    }
+  const hasAttachment = Boolean(message.attachment?.url);
+  const attachmentUrl = message.attachment?.url
+    ? message.attachment.url.startsWith("http")
+      ? message.attachment.url
+      : `${API_BASE_URL.replace("/api", "")}${message.attachment.url}`
+    : "";
 
-    // Unordered list items: - or *
-    const unorderedMatch = line.match(/^(\s*)[-*]\s+(.+)$/);
-    if (unorderedMatch) {
-      if (isOrderedList) flushList(`flush-ol-${idx}`);
-      isOrderedList = false;
-      currentListItems.push(
-        <li key={`li-${idx}`} className="leading-relaxed pl-1">
-          {renderInlineText(unorderedMatch[2])}
-        </li>
-      );
-      return;
-    }
-
-    // Ordered list items: 1.
-    const orderedMatch = line.match(/^(\s*)\d+\.\s+(.+)$/);
-    if (orderedMatch) {
-      if (!isOrderedList) flushList(`flush-ul-${idx}`);
-      isOrderedList = true;
-      currentListItems.push(
-        <li key={`oli-${idx}`} className="leading-relaxed pl-1">
-          {renderInlineText(orderedMatch[2])}
-        </li>
-      );
-      return;
-    }
-
-    // Not a list line -> flush any pending list
-    flushList(`flush-${idx}`);
-
-    // Headings
-    if (line.startsWith("### ")) {
-      elements.push(
-        <h3 key={`h3-${idx}`} className="text-base font-bold text-slate-900 mt-3 mb-1 tracking-tight">
-          {renderInlineText(line.slice(4))}
-        </h3>
-      );
-      return;
-    }
-    if (line.startsWith("## ")) {
-      elements.push(
-        <h2 key={`h2-${idx}`} className="text-lg font-bold text-slate-900 mt-4 mb-1.5 tracking-tight border-b border-slate-200 pb-1">
-          {renderInlineText(line.slice(3))}
-        </h2>
-      );
-      return;
-    }
-    if (line.startsWith("# ")) {
-      elements.push(
-        <h1 key={`h1-${idx}`} className="text-xl font-extrabold text-slate-900 mt-4 mb-2 tracking-tight">
-          {renderInlineText(line.slice(2))}
-        </h1>
-      );
-      return;
-    }
-
-    // Empty line / spacer
-    if (!line.trim()) {
-      elements.push(<div key={`space-${idx}`} className="h-2" />);
-      return;
-    }
-
-    // Regular paragraph
-    elements.push(
-      <p key={`p-${idx}`} className="text-sm text-slate-700 leading-relaxed my-1">
-        {renderInlineText(line)}
-      </p>
-    );
-  });
-
-  // Flush remaining list if any
-  flushList("final-flush");
-
-  // If still in code block at end of content
-  if (inCodeBlock && codeBlockLines.length > 0) {
-    elements.push(
-      <CodeBlock
-        key="code-unclosed"
-        language={codeBlockLang}
-        code={codeBlockLines.join("\n")}
-      />
-    );
-  }
-
-  return <div className="space-y-1 text-slate-800">{elements}</div>;
-};
-
-export const MessageItem: React.FC<MessageItemProps> = ({ message, onRetry }) => {
-  const isUser = message.role === "user";
-
-  const formattedTime = new Date(message.createdAt).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
+  // USER MESSAGE VIEW: Right-aligned pill bubble like ChatGPT
   if (isUser) {
-    const hasImage = Boolean(message.attachment && message.attachment.type === "image");
-    const imageUrl = message.attachment?.url
-      ? message.attachment.url.startsWith("http") || message.attachment.url.startsWith("blob:")
-        ? message.attachment.url
-        : `${API_BASE_URL}${message.attachment.url}`
-      : null;
-
     return (
-      <div className="flex justify-end mb-4 px-2 sm:px-4">
-        <div className="flex flex-col items-end max-w-[90%] sm:max-w-[80%] md:max-w-[70%]">
-          <div className="flex items-center gap-1.5 mb-1 text-[11px] text-slate-400">
-            <span className="font-semibold text-slate-600">You</span>
-            <span>•</span>
-            <span>{formattedTime}</span>
-          </div>
-          <div className="rounded-2xl rounded-tr-xs bg-indigo-600 p-3 sm:p-4 text-sm text-white shadow-sm leading-relaxed whitespace-pre-wrap break-words overflow-hidden selection:bg-indigo-800 space-y-2.5">
-            {hasImage && imageUrl && (
-              <div className="rounded-xl overflow-hidden bg-black/15 border border-white/20 shadow-xs">
-                <a
-                  href={imageUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block group relative cursor-pointer"
-                  title="Click to view full image in new tab"
-                >
+      <div className="group relative w-full py-2.5 px-3 sm:px-6">
+        <div className="max-w-3xl lg:max-w-4xl mx-auto flex justify-end">
+          <div className="flex flex-col items-end max-w-[88%] sm:max-w-[78%]">
+            {/* Attachment Preview if user uploaded an image */}
+            {hasAttachment && (
+              <div className="mb-2">
+                <div className="relative group/img rounded-2xl overflow-hidden border border-slate-200 dark:border-[#383838] bg-slate-100 dark:bg-[#282828] shadow-xs max-w-xs">
                   <img
-                    src={imageUrl}
+                    src={attachmentUrl}
                     alt={message.attachment?.name || "Uploaded attachment"}
-                    className="max-h-64 sm:max-h-72 w-auto max-w-full rounded-xl object-contain mx-auto transition-transform group-hover:scale-[1.02]"
+                    className="max-h-60 w-auto object-cover rounded-2xl"
                     loading="lazy"
                   />
-                </a>
+                  <a
+                    href={attachmentUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 flex items-center justify-center text-white transition-opacity gap-1.5 text-xs font-semibold"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    <span>View Image</span>
+                  </a>
+                </div>
               </div>
             )}
-            {message.content && (
-              <div className="leading-relaxed">
-                {message.content}
+
+            {/* User Edit Mode */}
+            {isEditing ? (
+              <form onSubmit={handleSaveEdit} className="w-full space-y-2 mt-1">
+                <textarea
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  rows={3}
+                  className="w-full p-3.5 rounded-2xl bg-white dark:bg-[#2f2f2f] border border-indigo-500 text-sm text-slate-900 dark:text-[#ececec] focus:outline-none ring-2 ring-indigo-500/20 custom-scrollbar resize-none"
+                />
+                <div className="flex items-center gap-2 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditing(false)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500 dark:text-[#b4b4b4] hover:bg-slate-100 dark:hover:bg-[#282828] cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs cursor-pointer"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Re-send</span>
+                  </button>
+                </div>
+              </form>
+            ) : (
+              /* User Bubble */
+              <div className="relative group/bubble flex items-center gap-2">
+                {/* Action buttons on hover */}
+                <div className="opacity-0 group-hover/bubble:opacity-100 transition-opacity flex items-center gap-1 text-slate-400 dark:text-[#737373]">
+                  <button
+                    type="button"
+                    onClick={handleCopy}
+                    className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-[#282828] hover:text-slate-700 dark:hover:text-[#ececec] cursor-pointer transition-colors"
+                    title="Copy prompt"
+                  >
+                    {copied ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-500" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                  {onEditPrompt && (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditing(true)}
+                      className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-[#282828] hover:text-slate-700 dark:hover:text-[#ececec] cursor-pointer transition-colors"
+                      title="Edit prompt"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="rounded-3xl bg-[#f4f4f4] dark:bg-[#2f2f2f] px-4 py-2.5 text-sm sm:text-base text-slate-900 dark:text-[#ececec] leading-relaxed whitespace-pre-wrap break-words shadow-2xs">
+                  {message.content}
+                </div>
               </div>
             )}
           </div>
@@ -286,84 +225,133 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onRetry }) =>
     );
   }
 
-  // Assistant message rendering
-  const isGenerating = message.status === "generating" || message.status === "pending";
-  const isFailed = message.status === "failed";
-
-  if (isGenerating) {
-    return (
-      <div className="flex justify-start mb-6 px-2 sm:px-4">
-        <div className="flex gap-3 max-w-[98%] sm:max-w-[90%] md:max-w-[85%] w-full">
-          <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-200/70 text-indigo-600 flex items-center justify-center flex-shrink-0 mt-0.5 animate-pulse shadow-xs">
-            <BrainCircuit className="w-4 h-4" />
-          </div>
-          <div className="flex-1 min-w-0 flex flex-col">
-            <div className="flex items-center gap-1.5 mb-1.5 text-[11px] text-slate-400">
-              <span className="font-semibold text-indigo-600">Lumina AI</span>
-              <span>•</span>
-              <span className="text-slate-500">Generating response...</span>
-            </div>
-            <div className="rounded-2xl rounded-tl-xs bg-white border border-slate-200/90 px-4 py-3.5 shadow-xs flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-indigo-500 animate-ping" />
-              <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
-              <span className="w-2 h-2 rounded-full bg-indigo-300 animate-pulse" />
-              <span className="text-xs text-slate-500 ml-1">Thinking...</span>
-            </div>
+  // ASSISTANT MESSAGE VIEW: Seamlessly sits on main canvas (transparent background, crystal clear text)
+  return (
+    <div className="group relative w-full py-4 px-3 sm:px-6 bg-transparent">
+      <div className="max-w-3xl lg:max-w-4xl mx-auto flex gap-3.5 sm:gap-4.5 items-start">
+        {/* Assistant Avatar */}
+        <div className="flex-shrink-0 mt-1">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-600 to-violet-600 text-white flex items-center justify-center shadow-xs border border-transparent dark:border-[#383838]">
+            <BrainCircuit className="w-4.5 h-4.5" />
           </div>
         </div>
-      </div>
-    );
-  }
 
-  if (isFailed) {
-    return (
-      <div className="flex justify-start mb-6 px-2 sm:px-4">
-        <div className="flex gap-3 max-w-[98%] sm:max-w-[90%] md:max-w-[85%] w-full">
-          <div className="w-8 h-8 rounded-xl bg-rose-50 border border-rose-200/70 text-rose-600 flex items-center justify-center flex-shrink-0 mt-0.5 shadow-xs">
-            <AlertCircle className="w-4 h-4" />
-          </div>
-          <div className="flex-1 min-w-0 flex flex-col">
-            <div className="flex items-center gap-1.5 mb-1.5 text-[11px] text-slate-400">
-              <span className="font-semibold text-rose-600">Lumina AI</span>
-              <span>•</span>
-              <span className="text-rose-500">Generation failed</span>
+        {/* Content Container */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-xs sm:text-sm text-slate-800 dark:text-[#ffffff]">
+                Lumina Agent
+              </span>
+              <span className="text-[10px] text-slate-400 dark:text-[#737373]">
+                {message.createdAt
+                  ? new Date(message.createdAt).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })
+                  : ""}
+              </span>
             </div>
-            <div className="rounded-2xl rounded-tl-xs bg-white border border-rose-200/90 px-4 py-3.5 shadow-xs flex flex-col gap-2.5">
-              <p className="text-xs text-slate-600">
-                {message.errorMessage || "Lumina AI was unable to complete the response due to high demand or network timeout."}
-              </p>
-              {onRetry && (
+
+            {/* Hover Actions Toolbar */}
+            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+              <button
+                type="button"
+                onClick={handleCopy}
+                className="p-1 rounded-md text-slate-400 dark:text-[#737373] hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#282828] transition-colors cursor-pointer"
+                title="Copy response"
+              >
+                {copied ? (
+                  <Check className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
+                ) : (
+                  <Copy className="w-3.5 h-3.5" />
+                )}
+              </button>
+
+              {onRegenerate && (
                 <button
                   type="button"
-                  onClick={onRetry}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer w-fit active:scale-95"
+                  onClick={onRegenerate}
+                  className="p-1 rounded-md text-slate-400 dark:text-[#737373] hover:text-indigo-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#282828] transition-colors cursor-pointer"
+                  title="Regenerate response"
                 >
-                  <RefreshCw className="w-3 h-3" />
-                  <span>Retry response</span>
+                  <RefreshCw className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
           </div>
-        </div>
-      </div>
-    );
-  }
 
-  return (
-    <div className="flex justify-start mb-6 px-2 sm:px-4">
-      <div className="flex gap-3 max-w-[98%] sm:max-w-[90%] md:max-w-[85%] w-full">
-        <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-200/70 text-indigo-600 flex items-center justify-center flex-shrink-0 mt-0.5 shadow-xs">
-          <BrainCircuit className="w-4 h-4" />
-        </div>
-        <div className="flex-1 min-w-0 flex flex-col">
-          <div className="flex items-center gap-1.5 mb-1.5 text-[11px] text-slate-400">
-            <span className="font-semibold text-indigo-600">Lumina AI</span>
-            <span>•</span>
-            <span className="text-slate-500">{formattedTime}</span>
+          {/* Assistant Rendered Markdown */}
+          <div className="markdown-body">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm, remarkMath]}
+              rehypePlugins={[rehypeKatex]}
+              components={{
+                code({ className, children, ...props }: any) {
+                  const match = /language-(\w+)/.exec(className || "");
+                  const rawString = String(children).replace(/\n$/, "");
+                  const isMultiLine = rawString.includes("\n");
+
+                  if (match || isMultiLine) {
+                    return (
+                      <CodeBlock
+                        language={match ? match[1] : "text"}
+                        code={rawString}
+                      />
+                    );
+                  }
+
+                  return (
+                    <code className="inline-code" {...props}>
+                      {children}
+                    </code>
+                  );
+                },
+                table({ children }) {
+                  return (
+                    <div className="overflow-x-auto my-3 rounded-xl border border-slate-200 dark:border-[#383838]">
+                      <table className="w-full text-left text-xs sm:text-sm">
+                        {children}
+                      </table>
+                    </div>
+                  );
+                },
+              }}
+            >
+              {message.content || ""}
+            </ReactMarkdown>
           </div>
-          <div className="rounded-2xl rounded-tl-xs bg-white border border-slate-200/90 px-4 py-3.5 shadow-xs overflow-hidden break-words">
-            <FormattedAssistantMessage content={message.content} />
-          </div>
+
+          {/* Thinking / Generating Indicator */}
+          {(message.status === "generating" || message.status === "pending") && (
+            <div className="mt-3 flex items-center gap-2 text-indigo-500 dark:text-indigo-400 text-xs font-medium animate-pulse">
+              <Sparkles className="w-4 h-4 animate-spin" />
+              <span>Thinking & synthesizing response...</span>
+            </div>
+          )}
+
+          {/* Failure Alert with Retry */}
+          {message.status === "failed" && (
+            <div className="mt-3 p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 flex items-center justify-between gap-3 text-xs text-rose-700 dark:text-rose-300">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-500 flex-shrink-0" />
+                <span>
+                  {message.errorMessage ||
+                    "Generation was interrupted. Please retry or verify token balance."}
+                </span>
+              </div>
+              {onRetry && (
+                <button
+                  type="button"
+                  onClick={onRetry}
+                  className="flex items-center gap-1 px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-medium shadow-xs transition-colors cursor-pointer flex-shrink-0"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  <span>Retry</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useParams, useNavigate, useLocation, useOutletContext } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { AxiosError } from "axios";
 import {
@@ -20,9 +20,10 @@ import type { SafeConversation, SafeMessage } from "../types/chat.types.ts";
 import { MessageItem } from "../components/MessageItem.tsx";
 import { MessageComposer } from "../components/MessageComposer.tsx";
 import { EmptyChatView } from "../components/EmptyChatView.tsx";
+import { ModelSelector } from "../components/ModelSelector.tsx";
+import { ChatExportModal } from "../components/ChatExportModal.tsx";
 import {
   BrainCircuit,
-  MessageSquare,
   Plus,
   Loader2,
   AlertCircle,
@@ -31,26 +32,33 @@ import {
   RefreshCw,
   Zap,
   Sparkles,
+  Share2,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { useTokenBalance } from "../../token/hooks/useTokenQueries.ts";
 
+interface LayoutContextType {
+  sidebarOpen: boolean;
+  toggleSidebar: () => void;
+  setSidebarOpen: React.Dispatch<React.SetStateAction<boolean>>;
+}
+
 export const ChatPage: React.FC = () => {
   const { conversationId } = useParams<{ conversationId?: string }>();
+  const layoutContext = useOutletContext<LayoutContextType | undefined>();
+  const sidebarOpen = layoutContext?.sidebarOpen ?? true;
+  const toggleSidebar = layoutContext?.toggleSidebar;
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
 
-  // Unique request counter and active request ID for strict stale-request isolation
   const requestIdCounter = useRef<number>(0);
   const activeRequestIdRef = useRef<number>(0);
-
-  // Track the active conversation ID to prevent in-flight responses from old conversations leaking into new/other conversations
   const activeConversationIdRef = useRef<string | undefined>(conversationId);
-  // Track when we are intentionally transitioning from draft (/app) to a newly created conversation (/app/:id)
   const isTransitioningFromDraftRef = useRef(false);
 
-  const { data: conversations, isLoading: isLoadingConversations } =
-    useConversations();
+  const { data: conversations } = useConversations();
   const {
     data: messages,
     isLoading: isLoadingMessages,
@@ -62,24 +70,11 @@ export const ChatPage: React.FC = () => {
   const deleteConversationMutation = useDeleteConversation();
   const { data: tokenData } = useTokenBalance();
 
-  const handleDeleteActiveConversation = async () => {
-    if (!conversationId) return;
-    if (window.confirm("Are you sure you want to delete this chat?")) {
-      try {
-        await deleteConversationMutation.mutateAsync(conversationId);
-        navigate("/app", { replace: true });
-      } catch (err) {
-        console.error("Failed to delete chat:", err);
-      }
-    }
-  };
-
   const [composerKey, setComposerKey] = useState(0);
-  const [pendingUserContent, setPendingUserContent] = useState<string | null>(
-    null
-  );
+  const [pendingUserContent, setPendingUserContent] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isTokenLimitError, setIsTokenLimitError] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   const isTokenExhausted =
     (tokenData !== undefined && tokenData.balance <= 0) || isTokenLimitError;
@@ -100,19 +95,16 @@ export const ChatPage: React.FC = () => {
   const prevConversationIdRef = useRef(conversationId);
   const prevResetDraftRef = useRef(location.state?.resetDraft);
 
-  // Sync activeConversationIdRef whenever conversationId changes
   useEffect(() => {
     activeConversationIdRef.current = conversationId;
   }, [conversationId]);
 
-  // Cleanly redirect to /app if requested conversation is not found or deleted (404)
   useEffect(() => {
     if ((messagesError as any)?.response?.status === 404) {
       navigate("/app", { replace: true });
     }
   }, [messagesError, navigate]);
 
-  // Reset UI state when switching conversations or when New Chat is explicitly clicked
   useEffect(() => {
     const conversationChanged = prevConversationIdRef.current !== conversationId;
     const resetDraftTriggered =
@@ -123,7 +115,6 @@ export const ChatPage: React.FC = () => {
     prevResetDraftRef.current = location.state?.resetDraft;
 
     if (resetDraftTriggered) {
-      // Explicit New Chat requested: invalidate any in-flight request identity
       activeRequestIdRef.current = ++requestIdCounter.current;
       isTransitioningFromDraftRef.current = false;
       activeConversationIdRef.current = undefined;
@@ -137,10 +128,8 @@ export const ChatPage: React.FC = () => {
 
     if (conversationChanged) {
       if (isTransitioningFromDraftRef.current) {
-        // Seamless transition from draft to newly created conversation: keep pending state intact
         return;
       }
-      // User switched conversations: invalidate any in-flight request identity
       activeRequestIdRef.current = ++requestIdCounter.current;
       setPendingUserContent(null);
       setErrorMessage(null);
@@ -149,7 +138,6 @@ export const ChatPage: React.FC = () => {
     }
   }, [conversationId, location.state]);
 
-  // Auto-scroll to bottom
   const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
     messagesEndRef.current?.scrollIntoView({ behavior });
   };
@@ -158,7 +146,6 @@ export const ChatPage: React.FC = () => {
     scrollToBottom("auto");
   }, [messages?.length, pendingUserContent, isGenerating]);
 
-  // Synchronize and resolve actual title for active conversation if it shows "New Chat" or "Untitled"
   useEffect(() => {
     if (!conversationId || !messages || messages.length === 0) return;
 
@@ -208,7 +195,7 @@ export const ChatPage: React.FC = () => {
     if (isTokenExhausted) {
       setIsTokenLimitError(true);
       setErrorMessage(
-        "Your token balance is exhausted. Please upgrade your plan to Pro or Plus to continue chatting."
+        "Your token balance is exhausted. Please upgrade your plan to continue chatting."
       );
       return;
     }
@@ -233,7 +220,6 @@ export const ChatPage: React.FC = () => {
       : undefined;
 
     if (!conversationId) {
-      // Draft flow: generate unique request ID
       const currentRequestId = ++requestIdCounter.current;
       activeRequestIdRef.current = currentRequestId;
       isTransitioningFromDraftRef.current = true;
@@ -247,8 +233,6 @@ export const ChatPage: React.FC = () => {
           title,
         });
 
-        // DRAFT RACE CHECK:
-        // If user clicked New Chat or navigated away while createConversation was in-flight, abort immediately.
         if (
           activeRequestIdRef.current !== currentRequestId ||
           activeConversationIdRef.current !== undefined
@@ -259,7 +243,6 @@ export const ChatPage: React.FC = () => {
 
         const targetConversationId = newConversation.id;
 
-        // Optimistically populate conversation message cache so prompt + image are immediately visible
         const optimisticMsg: SafeMessage = {
           id: `temp_${Date.now()}`,
           conversationId: targetConversationId,
@@ -273,18 +256,14 @@ export const ChatPage: React.FC = () => {
           [optimisticMsg]
         );
 
-        // Navigate using React Router replace so URL reflects new conversation without reload
         navigate(`/app/${targetConversationId}`, { replace: true });
         activeConversationIdRef.current = targetConversationId;
 
-        // Send message to the newly created conversation
         sendMessageMutation.mutate(
           { content: resolvedContent, file, targetConversationId },
           {
             onSuccess: () => {
               isTransitioningFromDraftRef.current = false;
-              // STALE-REQUEST ISOLATION:
-              // Only update UI if this exact request still belongs to the currently active conversation
               if (
                 activeRequestIdRef.current === currentRequestId &&
                 activeConversationIdRef.current === targetConversationId
@@ -295,7 +274,6 @@ export const ChatPage: React.FC = () => {
             },
             onError: (err) => {
               isTransitioningFromDraftRef.current = false;
-              // Remove temporary optimistic message on failure
               queryClient.setQueryData<SafeMessage[]>(
                 chatKeys.messages(targetConversationId),
                 (old = []) => old.filter((m) => m.id !== optimisticMsg.id)
@@ -310,7 +288,6 @@ export const ChatPage: React.FC = () => {
           }
         );
       } catch (err) {
-        // Conversation creation failed before navigation:
         if (activeRequestIdRef.current === currentRequestId) {
           isTransitioningFromDraftRef.current = false;
           setPendingUserContent(null);
@@ -329,7 +306,7 @@ export const ChatPage: React.FC = () => {
       return;
     }
 
-    // Existing conversation flow:
+    // Existing conversation flow
     const targetConversationId = conversationId;
     const currentRequestId = ++requestIdCounter.current;
     activeRequestIdRef.current = currentRequestId;
@@ -351,8 +328,6 @@ export const ChatPage: React.FC = () => {
       { content: resolvedContent, file, targetConversationId },
       {
         onSuccess: () => {
-          // STALE-REQUEST ISOLATION:
-          // Only update UI if this exact request still belongs to the currently active conversation
           if (
             activeRequestIdRef.current === currentRequestId &&
             activeConversationIdRef.current === targetConversationId
@@ -378,7 +353,6 @@ export const ChatPage: React.FC = () => {
   };
 
   const handleStartNewChat = () => {
-    // Invalidate in-flight request identity immediately
     activeRequestIdRef.current = ++requestIdCounter.current;
     isTransitioningFromDraftRef.current = false;
     activeConversationIdRef.current = undefined;
@@ -391,9 +365,19 @@ export const ChatPage: React.FC = () => {
     navigate("/app", { state: { resetDraft: Date.now() } });
   };
 
+  const handleDeleteActiveConversation = async () => {
+    if (!conversationId) return;
+    const targetId = conversationId;
+    navigate("/app", { replace: true, state: { resetDraft: Date.now() } });
+    try {
+      await deleteConversationMutation.mutateAsync(targetId);
+    } catch (err) {
+      console.error("Failed to delete chat:", err);
+    }
+  };
+
   const currentConversation = conversations?.find((c) => c.id === conversationId);
 
-  // State 1: Invalid / missing conversation ID error (e.g. 404 or 400 malformed ID)
   const isInvalidConversation =
     Boolean(conversationId) &&
     Boolean(messagesError) &&
@@ -402,14 +386,14 @@ export const ChatPage: React.FC = () => {
 
   if (isInvalidConversation) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-slate-950">
+      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-[var(--bg-primary)]">
         <div className="w-14 h-14 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 flex items-center justify-center mb-4 shadow-xs">
           <AlertCircle className="w-7 h-7" />
         </div>
-        <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mb-2 tracking-tight">
+        <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 mb-2 tracking-tight">
           Conversation Not Found
         </h2>
-        <p className="text-sm text-slate-500 max-w-sm mb-6 leading-relaxed">
+        <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm mb-6 leading-relaxed">
           The conversation you requested does not exist or the link may be invalid.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
@@ -421,86 +405,96 @@ export const ChatPage: React.FC = () => {
             <Plus className="w-4 h-4" />
             <span>Start New Chat</span>
           </button>
-          <button
-            type="button"
-            onClick={handleStartNewChat}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-medium text-sm shadow-xs transition-all cursor-pointer active:scale-98"
-          >
-            <MessageSquare className="w-4 h-4 text-slate-400" />
-            <span>Return to Chats</span>
-          </button>
         </div>
       </div>
     );
   }
 
-  const activeErrorMessage = errorMessage;
-
   const messageList: SafeMessage[] = messages ?? [];
   const hasMessages = messageList.length > 0;
   const lastMessage = hasMessages ? messageList[messageList.length - 1] : null;
 
+  const currentTitle = conversationId
+    ? resolveConversationTitle(
+        conversationId,
+        currentConversation?.title,
+        messages?.find((m) => m.role === "user")?.content
+      )
+    : "New Chat";
+
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-100/60">
-      {/* Conversation Top Bar */}
-      <header className="px-4 py-3 border-b border-slate-200/90 bg-white/80 backdrop-blur flex items-center justify-between z-10 shadow-xs">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-200/70 flex-shrink-0 shadow-xs">
-            <BrainCircuit className="w-4 h-4" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-sm font-semibold text-slate-900 truncate">
-              {conversationId
-                ? resolveConversationTitle(
-                    conversationId,
-                    currentConversation?.title,
-                    messages?.find((m) => m.role === "user")?.content
-                  )
-                : isLoadingConversations
-                ? "Loading..."
-                : "New Chat"}
-            </h1>
-            <p className="text-[11px] text-slate-500">Lumina AI Assistant</p>
-          </div>
+    <div className="flex-1 flex flex-col h-full overflow-hidden bg-[var(--bg-primary)] transition-colors">
+      {/* Conversation Top Header Bar */}
+      <header className="px-4 py-2.5 border-b border-slate-200/90 dark:border-[#222226] bg-white/90 dark:bg-[#0d0d0d]/95 backdrop-blur-md flex items-center justify-between z-10 shadow-xs">
+        {/* Model Switcher and Sidebar Reopen on Left */}
+        <div className="flex items-center gap-2 min-w-0">
+          {toggleSidebar && (
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              className="hidden md:flex items-center justify-center p-2 rounded-xl text-slate-500 hover:text-slate-800 dark:text-[#a0a0a5] dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#1c1c20] transition-colors cursor-pointer"
+              title={sidebarOpen ? "Close sidebar (Ctrl+B)" : "Open sidebar (Ctrl+B)"}
+              aria-label="Toggle sidebar"
+            >
+              {sidebarOpen ? (
+                <PanelLeftClose className="w-4 h-4" />
+              ) : (
+                <PanelLeftOpen className="w-4 h-4" />
+              )}
+            </button>
+          )}
+          <ModelSelector />
+
+          {conversationId && (
+            <span className="hidden sm:inline-block max-w-[180px] md:max-w-[320px] truncate text-xs font-semibold text-slate-600 dark:text-[#a0a0a5] px-2.5 py-1 rounded-lg bg-slate-100/80 dark:bg-[#18181b] border border-slate-200/60 dark:border-[#242428]">
+              {currentTitle}
+            </span>
+          )}
         </div>
 
+        {/* Header Right Actions */}
         <div className="flex items-center gap-2">
+          {/* Export & Share Modal Trigger */}
+          {conversationId && hasMessages && (
+            <button
+              id="trigger-chat-export"
+              type="button"
+              onClick={() => setIsExportModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-[#18181b] hover:bg-slate-50 dark:hover:bg-[#222226] text-slate-700 dark:text-[#ececec] border border-slate-200 dark:border-[#28282c] shadow-xs transition-colors cursor-pointer text-xs font-semibold"
+              title="Export & Share Chat"
+            >
+              <Share2 className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
+              <span className="hidden sm:inline">Export</span>
+            </button>
+          )}
+
           {conversationId && (
             <button
               type="button"
               onClick={handleDeleteActiveConversation}
               disabled={deleteConversationMutation.isPending}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-rose-50 text-xs font-medium text-slate-600 hover:text-rose-600 border border-slate-200/90 shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-white dark:bg-[#18181b] hover:bg-rose-50 dark:hover:bg-rose-950/50 text-xs font-medium text-slate-600 dark:text-[#b4b4b4] hover:text-rose-600 dark:hover:text-rose-400 border border-slate-200 dark:border-[#28282c] shadow-xs transition-colors cursor-pointer disabled:opacity-50"
               title="Delete Chat"
             >
               <Trash2 className="w-3.5 h-3.5 text-rose-500" />
-              <span className="hidden sm:inline">Delete</span>
+              <span className="hidden md:inline">Delete</span>
             </button>
           )}
-          <button
-            type="button"
-            onClick={handleStartNewChat}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-xs font-medium text-slate-700 border border-slate-200/90 shadow-xs transition-colors cursor-pointer"
-            title="Start New Chat"
-          >
-            <Plus className="w-3.5 h-3.5 text-indigo-600" />
-            <span className="hidden sm:inline">New Chat</span>
-          </button>
         </div>
       </header>
 
       {/* Error Banners */}
-      {activeErrorMessage && (
+      {errorMessage && (
         <div
-          className={`mx-4 mt-3 p-3.5 rounded-xl border text-xs flex items-start justify-between gap-3 shadow-xs ${
+          className={`mx-4 mt-3 p-3.5 rounded-2xl border text-xs flex items-start justify-between gap-3 shadow-xs ${
             isTokenLimitError
-              ? "bg-amber-50 border-amber-200 text-amber-800"
-              : "bg-rose-50 border-rose-200 text-rose-800"
+              ? "bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900/60 text-amber-800 dark:text-amber-300"
+              : "bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900/60 text-rose-800 dark:text-rose-300"
           }`}
         >
           <div className="flex items-start gap-2.5">
             <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-            <span>{activeErrorMessage}</span>
+            <span>{errorMessage}</span>
           </div>
           <button
             type="button"
@@ -508,7 +502,7 @@ export const ChatPage: React.FC = () => {
               setErrorMessage(null);
               setIsTokenLimitError(false);
             }}
-            className="text-slate-400 hover:text-slate-700"
+            className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
             aria-label="Dismiss error"
           >
             <XCircle className="w-4 h-4" />
@@ -517,14 +511,14 @@ export const ChatPage: React.FC = () => {
       )}
 
       {/* Main Message Stream */}
-      <div className="flex-1 overflow-y-auto p-2 sm:p-4 md:p-6 space-y-1">
+      <div className="flex-1 overflow-y-auto p-2 sm:p-4 md:p-6 space-y-1 custom-scrollbar">
         {!conversationId && !pendingUserContent ? (
           <EmptyChatView
             onSelectPrompt={(prompt) => {
               if (isTokenExhausted) {
                 setIsTokenLimitError(true);
                 setErrorMessage(
-                  "Your token balance is exhausted. Please upgrade your plan to Pro or Plus to continue chatting."
+                  "Your token balance is exhausted. Please upgrade your plan to continue chatting."
                 );
                 return;
               }
@@ -532,13 +526,11 @@ export const ChatPage: React.FC = () => {
             }}
           />
         ) : isLoadingMessages && !hasMessages && !pendingUserContent ? (
-          // CONVERSATION LOADING VIEW (when first mounting an existing conversation without draft)
           <div className="h-full flex flex-col items-center justify-center text-slate-500 py-16">
             <Loader2 className="w-8 h-8 animate-spin text-indigo-600 mb-3" />
             <p className="text-xs font-medium">Loading message history...</p>
           </div>
         ) : (
-          // ACTIVE OR STREAMING CONVERSATION VIEW
           <>
             {messageList.map((msg, idx) => {
               let retryHandler: (() => void) | undefined = undefined;
@@ -551,24 +543,41 @@ export const ChatPage: React.FC = () => {
                   retryHandler = () => handleSendMessage(prevUserMsg.content);
                 }
               }
+
+              const handleRegenerate = () => {
+                const prevUserMsg = messageList
+                  .slice(0, idx)
+                  .reverse()
+                  .find((m) => m.role === "user");
+                if (prevUserMsg) {
+                  handleSendMessage(prevUserMsg.content);
+                }
+              };
+
               return (
                 <MessageItem
                   key={msg.id}
                   message={msg}
                   onRetry={retryHandler}
+                  onEditPrompt={(newPrompt) => {
+                    handleSendMessage(newPrompt);
+                  }}
+                  onRegenerate={handleRegenerate}
                 />
               );
             })}
 
-            {/* Pending User Message while response is generating if not already in messageList */}
+            {/* Pending User Message while response is generating */}
             {pendingUserContent &&
               !messageList.some(
                 (m) => m.role === "user" && m.content === pendingUserContent
               ) && (
-                <div className="flex justify-end mb-4 px-2 sm:px-4">
+                <div className="flex justify-end mb-4 px-2 sm:px-6">
                   <div className="flex flex-col items-end max-w-[90%] sm:max-w-[80%] md:max-w-[70%]">
                     <div className="flex items-center gap-1.5 mb-1 text-[11px] text-slate-400">
-                      <span className="font-semibold text-slate-600">You</span>
+                      <span className="font-semibold text-slate-600 dark:text-slate-400">
+                        You
+                      </span>
                       <span>•</span>
                       <span>Sending...</span>
                     </div>
@@ -579,51 +588,59 @@ export const ChatPage: React.FC = () => {
                 </div>
               )}
 
-            {/* Assistant Generating Indicator (only shown during local mutation pending before server placeholder appears) */}
+            {/* Assistant Generating Indicator */}
             {isGenerating && !hasServerGeneratingMessage && (
-              <div className="flex justify-start mb-6 px-2 sm:px-4">
-                <div className="flex gap-3 max-w-[85%]">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-200/70 text-indigo-600 flex items-center justify-center flex-shrink-0 mt-0.5 animate-pulse shadow-xs">
+              <div className="flex justify-start mb-6 px-2 sm:px-6">
+                <div className="flex gap-3.5 max-w-[85%]">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-600 to-violet-600 text-white flex items-center justify-center flex-shrink-0 mt-0.5 animate-pulse shadow-sm">
                     <BrainCircuit className="w-4 h-4" />
                   </div>
                   <div className="flex flex-col">
                     <div className="flex items-center gap-1.5 mb-1.5 text-[11px] text-slate-400">
-                      <span className="font-semibold text-indigo-600">Lumina AI</span>
+                      <span className="font-semibold text-indigo-600 dark:text-indigo-400">
+                        Lumina Agent
+                      </span>
                       <span>•</span>
-                      <span className="text-slate-500">Generating response...</span>
+                      <span className="text-slate-500">Synthesizing answer...</span>
                     </div>
-                    <div className="rounded-2xl rounded-tl-xs bg-white border border-slate-200/80 px-4 py-3.5 text-sm text-slate-700 shadow-xs flex items-center gap-2">
+                    <div className="rounded-2xl rounded-tl-xs bg-white dark:bg-[#282828] border border-slate-200 dark:border-[#383838] px-4 py-3 text-sm text-slate-700 dark:text-[#ececec] shadow-xs flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-indigo-500 animate-ping" />
                       <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
                       <span className="w-2 h-2 rounded-full bg-indigo-300 animate-pulse" />
-                      <span className="text-xs text-slate-500 ml-1">Thinking...</span>
+                      <span className="text-xs text-slate-500 dark:text-[#b4b4b4] ml-1">
+                        Reasoning...
+                      </span>
                     </div>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Interrupted Response Notice with Retry (only for ancient unhandled user messages where no assistant message was ever created and nothing is generating) */}
+            {/* Interrupted Response Notice */}
             {!isGenerating && !hasServerGeneratingMessage && hasMessages && lastMessage?.role === "user" && (
-              <div className="flex justify-start mb-6 px-2 sm:px-4">
+              <div className="flex justify-start mb-6 px-2 sm:px-6">
                 <div className="flex gap-3 max-w-[85%]">
-                  <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200/70 text-amber-600 flex items-center justify-center flex-shrink-0 mt-0.5 shadow-xs">
+                  <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200/70 dark:border-amber-900/60 text-amber-600 dark:text-amber-400 flex items-center justify-center flex-shrink-0 mt-0.5 shadow-xs">
                     <AlertCircle className="w-4 h-4" />
                   </div>
                   <div className="flex flex-col gap-2">
-                    <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                      <span className="font-semibold text-slate-700">Lumina AI</span>
+                    <div className="flex items-center gap-1.5 text-[11px] text-slate-400 dark:text-[#737373]">
+                      <span className="font-semibold text-slate-700 dark:text-[#ececec]">
+                        Lumina Agent
+                      </span>
                       <span>•</span>
-                      <span className="text-amber-600 font-medium">Response was interrupted</span>
+                      <span className="text-amber-600 dark:text-amber-400 font-medium">
+                        Response was interrupted
+                      </span>
                     </div>
-                    <div className="rounded-2xl rounded-tl-xs bg-white border border-slate-200/90 px-4 py-3 shadow-xs flex flex-col gap-2.5">
-                      <p className="text-xs text-slate-600">
-                        Lumina AI was unable to complete the response due to high demand or network timeout.
+                    <div className="rounded-2xl rounded-tl-xs bg-white dark:bg-[#282828] border border-slate-200/90 dark:border-[#383838] px-4 py-3 shadow-xs flex flex-col gap-2.5">
+                      <p className="text-xs text-slate-600 dark:text-[#b4b4b4]">
+                        The previous generation was interrupted. Would you like to retry?
                       </p>
                       <button
                         type="button"
                         onClick={() => handleSendMessage(lastMessage.content)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer w-fit active:scale-95"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer w-fit active:scale-95"
                       >
                         <RefreshCw className="w-3 h-3" />
                         <span>Retry response</span>
@@ -641,17 +658,17 @@ export const ChatPage: React.FC = () => {
 
       {/* Token Exhaustion Alert Banner */}
       {isTokenExhausted && (
-        <div className="mx-4 mb-2 p-3 sm:p-3.5 rounded-2xl bg-amber-50 border border-amber-200/90 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="mx-4 mb-2 p-3 sm:p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200/90 dark:border-amber-900/60 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 flex items-center justify-center flex-shrink-0">
               <Zap className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-xs font-semibold text-slate-800">
+              <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
                 AI Tokens Finished (0 Remaining)
               </p>
-              <p className="text-[11px] text-slate-500">
-                You've used all your tokens. Upgrade to Pro (50,000 tokens) or Plus (100,000 tokens) to chat more.
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                You've used all your tokens. Upgrade to Pro or top up to continue chatting.
               </p>
             </div>
           </div>
@@ -666,7 +683,7 @@ export const ChatPage: React.FC = () => {
         </div>
       )}
 
-      {/* Bottom Composer */}
+      {/* Message Composer */}
       <MessageComposer
         key={composerKey}
         onSendMessage={handleSendMessage}
@@ -679,6 +696,14 @@ export const ChatPage: React.FC = () => {
             ? "Tokens exhausted. Upgrade your plan to continue chatting..."
             : undefined
         }
+      />
+
+      {/* Export & Sharing Modal */}
+      <ChatExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        title={currentTitle}
+        messages={messageList}
       />
     </div>
   );
