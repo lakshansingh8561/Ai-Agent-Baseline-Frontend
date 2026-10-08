@@ -134,7 +134,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   if (isUser) {
     return (
       <div className="group relative w-full py-2.5 px-3 sm:px-6">
-        <div className="max-w-3xl mx-auto flex justify-end">
+        <div className="max-w-3xl lg:max-w-4xl mx-auto flex justify-end">
           <div className="flex flex-col items-end max-w-[88%] sm:max-w-[78%]">
             {/* Attachment Preview if user uploaded an image */}
             {hasAttachment && (
@@ -228,7 +228,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   // ASSISTANT MESSAGE VIEW: Seamlessly sits on main canvas (transparent background, crystal clear text)
   return (
     <div className="group relative w-full py-4 px-3 sm:px-6 bg-transparent">
-      <div className="max-w-3xl mx-auto flex gap-3.5 sm:gap-4.5 items-start">
+      <div className="max-w-3xl lg:max-w-4xl mx-auto flex gap-3.5 sm:gap-4.5 items-start">
         {/* Assistant Avatar */}
         <div className="flex-shrink-0 mt-1">
           <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-600 to-violet-600 text-white flex items-center justify-center shadow-xs border border-transparent dark:border-[#383838]">

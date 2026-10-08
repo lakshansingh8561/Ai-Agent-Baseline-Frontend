@@ -33,12 +33,22 @@ import {
   Zap,
   Sparkles,
   Share2,
+  PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
 import { useTokenBalance } from "../../token/hooks/useTokenQueries.ts";
 
+interface LayoutContextType {
+  sidebarOpen: boolean;
+  toggleSidebar: () => void;
+  setSidebarOpen: React.Dispatch<React.SetStateAction<boolean>>;
+}
+
 export const ChatPage: React.FC = () => {
   const { conversationId } = useParams<{ conversationId?: string }>();
+  const layoutContext = useOutletContext<LayoutContextType | undefined>();
+  const sidebarOpen = layoutContext?.sidebarOpen ?? true;
+  const toggleSidebar = layoutContext?.toggleSidebar;
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
@@ -59,13 +69,6 @@ export const ChatPage: React.FC = () => {
   const sendMessageMutation = useSendMessage(conversationId);
   const deleteConversationMutation = useDeleteConversation();
   const { data: tokenData } = useTokenBalance();
-
-  const outletContext = useOutletContext<{
-    sidebarOpen: boolean;
-    toggleSidebar: () => void;
-  } | undefined>();
-  const sidebarOpen = outletContext?.sidebarOpen ?? true;
-  const toggleSidebar = outletContext?.toggleSidebar;
 
   const [composerKey, setComposerKey] = useState(0);
   const [pendingUserContent, setPendingUserContent] = useState<string | null>(null);
@@ -364,13 +367,12 @@ export const ChatPage: React.FC = () => {
 
   const handleDeleteActiveConversation = async () => {
     if (!conversationId) return;
-    if (window.confirm("Are you sure you want to delete this chat?")) {
-      try {
-        await deleteConversationMutation.mutateAsync(conversationId);
-        navigate("/app", { replace: true });
-      } catch (err) {
-        console.error("Failed to delete chat:", err);
-      }
+    const targetId = conversationId;
+    navigate("/app", { replace: true, state: { resetDraft: Date.now() } });
+    try {
+      await deleteConversationMutation.mutateAsync(targetId);
+    } catch (err) {
+      console.error("Failed to delete chat:", err);
     }
   };
 
@@ -426,23 +428,32 @@ export const ChatPage: React.FC = () => {
       <header className="px-4 py-2.5 border-b border-slate-200/90 dark:border-[#222226] bg-white/90 dark:bg-[#0d0d0d]/95 backdrop-blur-md flex items-center justify-between z-10 shadow-xs">
         {/* Model Switcher and Sidebar Reopen on Left */}
         <div className="flex items-center gap-2 min-w-0">
-          {!sidebarOpen && toggleSidebar && (
+          {toggleSidebar && (
             <button
               type="button"
               onClick={toggleSidebar}
-              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#1a1a1d] border border-slate-200/80 dark:border-[#28282c] transition-colors cursor-pointer"
-              title="Open sidebar (Ctrl+B)"
-              aria-label="Open sidebar"
+              className="hidden md:flex items-center justify-center p-2 rounded-xl text-slate-500 hover:text-slate-800 dark:text-[#a0a0a5] dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#1c1c20] transition-colors cursor-pointer"
+              title={sidebarOpen ? "Close sidebar (Ctrl+B)" : "Open sidebar (Ctrl+B)"}
+              aria-label="Toggle sidebar"
             >
-              <PanelLeftOpen className="w-4 h-4" />
+              {sidebarOpen ? (
+                <PanelLeftClose className="w-4 h-4" />
+              ) : (
+                <PanelLeftOpen className="w-4 h-4" />
+              )}
             </button>
           )}
           <ModelSelector />
+
+          {conversationId && (
+            <span className="hidden sm:inline-block max-w-[180px] md:max-w-[320px] truncate text-xs font-semibold text-slate-600 dark:text-[#a0a0a5] px-2.5 py-1 rounded-lg bg-slate-100/80 dark:bg-[#18181b] border border-slate-200/60 dark:border-[#242428]">
+              {currentTitle}
+            </span>
+          )}
         </div>
 
         {/* Header Right Actions */}
         <div className="flex items-center gap-2">
-
           {/* Export & Share Modal Trigger */}
           {conversationId && hasMessages && (
             <button
@@ -469,16 +480,6 @@ export const ChatPage: React.FC = () => {
               <span className="hidden md:inline">Delete</span>
             </button>
           )}
-
-          <button
-            type="button"
-            onClick={handleStartNewChat}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 dark:bg-white dark:hover:bg-[#e0e0e0] text-white dark:text-black text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-            title="Start New Chat"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">New Chat</span>
-          </button>
         </div>
       </header>
 

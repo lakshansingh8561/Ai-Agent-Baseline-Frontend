@@ -159,7 +159,7 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
 
   return (
     <div className="w-full bg-gradient-to-t from-white via-white/95 to-transparent dark:from-[#0d0d0d] dark:via-[#0d0d0d]/95 dark:to-transparent pt-2 pb-3 px-3 sm:px-6">
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-3xl lg:max-w-4xl mx-auto">
         {/* Hidden file input */}
         <input
           type="file"

@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "./useAuth.ts";
 import { AxiosError } from "axios";
 import type { ApiErrorResponse } from "../../types/auth.ts";
 import { BrainCircuit, User as UserIcon, Mail, Lock, AlertCircle, Loader2, Eye, EyeOff, Moon, Sun, CheckCircle2 } from "lucide-react";
 import { useTheme } from "../../lib/theme.tsx";
+import { api } from "../../lib/api.ts";
 
 export const RegisterPage: React.FC = () => {
   const { register } = useAuth();
@@ -16,8 +17,27 @@ export const RegisterPage: React.FC = () => {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSlowWarning, setShowSlowWarning] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
+
+  // Silently pre-warm backend on page load
+  useEffect(() => {
+    api.get("/api/health").catch(() => {});
+  }, []);
+
+  // Display status notice if cold start takes more than 3.5 seconds
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    if (isSubmitting) {
+      timer = setTimeout(() => {
+        setShowSlowWarning(true);
+      }, 3500);
+    } else {
+      setShowSlowWarning(false);
+    }
+    return () => clearTimeout(timer);
+  }, [isSubmitting]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -239,6 +259,11 @@ export const RegisterPage: React.FC = () => {
                   <span>Create account</span>
                 )}
               </button>
+              {showSlowWarning && (
+                <p className="mt-2 text-center text-xs text-amber-600 dark:text-amber-400 animate-in fade-in duration-300">
+                  Waking up cloud server instance... this may take a moment on first visit.
+                </p>
+              )}
             </div>
           </form>
 
