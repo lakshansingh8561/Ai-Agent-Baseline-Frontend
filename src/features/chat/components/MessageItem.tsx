@@ -5,6 +5,7 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import type { SafeMessage } from "../types/chat.types.ts";
 import { highlightCode } from "../utils/syntax.utils.ts";
+import { formatMathMarkdown } from "../utils/math.utils.ts";
 import {
   BrainCircuit,
   Copy,
@@ -122,6 +123,12 @@ export const MessageItem: React.FC<MessageItemProps> = ({
       onEditPrompt(editContent.trim());
     }
   };
+
+  // Pre-process LaTeX equations from LLMs so remark-math and KaTeX never break or output red error blocks
+  const formattedContent = useMemo(
+    () => formatMathMarkdown(message.content || ""),
+    [message.content]
+  );
 
   const hasAttachment = Boolean(message.attachment?.url);
   const attachmentUrl = message.attachment?.url
@@ -285,7 +292,17 @@ export const MessageItem: React.FC<MessageItemProps> = ({
           <div className="markdown-body">
             <ReactMarkdown
               remarkPlugins={[remarkGfm, remarkMath]}
-              rehypePlugins={[rehypeKatex]}
+              rehypePlugins={[
+                [
+                  rehypeKatex,
+                  {
+                    strict: false,
+                    trust: true,
+                    throwOnError: false,
+                    errorColor: "inherit",
+                  },
+                ],
+              ]}
               components={{
                 code({ className, children, ...props }: any) {
                   const match = /language-(\w+)/.exec(className || "");
@@ -318,7 +335,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                 },
               }}
             >
-              {message.content || ""}
+              {formattedContent}
             </ReactMarkdown>
           </div>
 
