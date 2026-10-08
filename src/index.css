@@ -308,9 +308,23 @@ body {
   color: #ffa657;
 }
 
-/* KaTeX equations in dark mode */
+/* KaTeX equations in dark mode & graceful error styling */
 .dark .katex {
   color: #ececec;
+}
+
+.katex-display {
+  margin: 0.85em 0 !important;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.25rem 0;
+}
+
+.katex-error {
+  color: inherit !important;
+  background-color: transparent !important;
+  font-family: inherit !important;
+  white-space: pre-wrap;
 }
 
 /* Print stylesheet */
