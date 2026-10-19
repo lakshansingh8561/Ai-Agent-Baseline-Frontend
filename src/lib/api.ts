@@ -1,7 +1,10 @@
 import axios, { type InternalAxiosRequestConfig, AxiosError } from "axios";
 import { getStoredToken, removeStoredToken } from "./token.ts";
 
-const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+const rawBaseUrl =
+  (typeof import.meta !== "undefined" &&
+    (import.meta as any).env?.VITE_API_BASE_URL) ||
+  "http://localhost:5000";
 // Clean trailing slash if present
 export const API_BASE_URL = rawBaseUrl.replace(/\/+$/, "");
 

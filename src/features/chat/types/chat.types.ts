@@ -67,3 +67,42 @@ export interface SendMessageInput {
   content: string;
   file?: File | null;
 }
+
+export interface SSEMetadata {
+  conversationId: string;
+  userMessageId: string;
+  assistantMessageId: string;
+  model: string;
+}
+
+export interface SSEDelta {
+  content: string;
+  index?: number;
+}
+
+export interface SSEDone {
+  conversationId: string;
+  userMessage: SafeMessage;
+  assistantMessage: SafeMessage;
+  usage?: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+    model: string;
+  };
+  status: "completed";
+  isReplay?: boolean;
+}
+
+export interface SSEError {
+  code: string;
+  message: string;
+  statusCode: number;
+}
+
+export interface SendMessageStreamCallbacks {
+  onMetadata?: (meta: SSEMetadata) => void;
+  onDelta?: (delta: SSEDelta) => void;
+  onDone?: (done: SSEDone) => void;
+  onError?: (error: SSEError | Error) => void;
+}

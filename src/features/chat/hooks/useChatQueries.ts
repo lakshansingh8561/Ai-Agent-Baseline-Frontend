@@ -1,9 +1,11 @@
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   fetchConversations,
   createConversation,
   fetchMessages,
   sendMessage,
+  sendMessageStream,
   deleteConversation,
 } from "../api/chat.api.ts";
 import { tokenKeys } from "../../token/index.ts";
@@ -198,5 +200,151 @@ export const useDeleteConversation = () => {
       queryClient.invalidateQueries({ queryKey: chatKeys.conversations(), exact: true });
     },
   });
+};
+
+export const useSendMessageStream = (conversationId?: string) => {
+  const queryClient = useQueryClient();
+  const [isStreaming, setIsStreaming] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const cancelStream = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setIsStreaming(false);
+  }, []);
+
+  const sendStream = useCallback(
+    async (
+      input: SendMessageInput & { targetConversationId?: string },
+      options?: {
+        onSuccess?: () => void;
+        onError?: (err: Error) => void;
+      }
+    ) => {
+      const activeId = input.targetConversationId || conversationId;
+      if (!activeId) {
+        throw new Error("No conversation selected");
+      }
+
+      cancelStream();
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+      setIsStreaming(true);
+
+      let assistantPlaceholderId: string | undefined;
+
+      try {
+        await sendMessageStream(
+          activeId,
+          { content: input.content, file: input.file },
+          {
+            onMetadata: (meta) => {
+              assistantPlaceholderId = meta.assistantMessageId;
+              queryClient.setQueryData<SafeMessage[]>(
+                chatKeys.messages(activeId),
+                (old = []) => {
+                  const existingAssistant = old.find(
+                    (m) => m.id === meta.assistantMessageId
+                  );
+                  if (existingAssistant) return old;
+                  return [
+                    ...old,
+                    {
+                      id: meta.assistantMessageId,
+                      conversationId: activeId,
+                      role: "assistant",
+                      content: "",
+                      status: "generating",
+                      createdAt: new Date().toISOString(),
+                    },
+                  ];
+                }
+              );
+            },
+            onDelta: (delta) => {
+              queryClient.setQueryData<SafeMessage[]>(
+                chatKeys.messages(activeId),
+                (old = []) =>
+                  old.map((m) => {
+                    if (
+                      (assistantPlaceholderId &&
+                        m.id === assistantPlaceholderId) ||
+                      (!assistantPlaceholderId &&
+                        m.role === "assistant" &&
+                        m.status === "generating")
+                    ) {
+                      return {
+                        ...m,
+                        content: m.content + delta.content,
+                      };
+                    }
+                    return m;
+                  })
+              );
+            },
+            onDone: (done) => {
+              setIsStreaming(false);
+              queryClient.setQueryData<SafeMessage[]>(
+                chatKeys.messages(activeId),
+                (old = []) => {
+                  const nonOptimistic = old.filter(
+                    (m) =>
+                      !m.id.startsWith("temp_") &&
+                      m.id !== assistantPlaceholderId &&
+                      m.id !== done.assistantMessage.id
+                  );
+                  return [
+                    ...nonOptimistic,
+                    done.userMessage,
+                    done.assistantMessage,
+                  ];
+                }
+              );
+              queryClient.invalidateQueries({
+                queryKey: chatKeys.conversations(),
+                exact: true,
+              });
+              queryClient.invalidateQueries({ queryKey: tokenKeys.balance() });
+              options?.onSuccess?.();
+            },
+            onError: (err) => {
+              setIsStreaming(false);
+              queryClient.invalidateQueries({ queryKey: tokenKeys.balance() });
+              const errorObj =
+                err instanceof Error
+                  ? err
+                  : new Error((err as any)?.message || "Stream error");
+              options?.onError?.(errorObj);
+            },
+          },
+          controller.signal
+        );
+      } catch (err: any) {
+        setIsStreaming(false);
+        queryClient.invalidateQueries({ queryKey: tokenKeys.balance() });
+        if (controller.signal.aborted) {
+          return;
+        }
+        options?.onError?.(err instanceof Error ? err : new Error(String(err)));
+      }
+    },
+    [conversationId, queryClient, cancelStream]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
+  return {
+    sendStream,
+    isStreaming,
+    cancelStream,
+  };
 };
 

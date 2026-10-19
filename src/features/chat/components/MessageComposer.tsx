@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { SendHorizontal, Loader2, Paperclip, X, AlertCircle, Sparkles } from "lucide-react";
+import { SendHorizontal, Loader2, Paperclip, X, AlertCircle, Sparkles, Square } from "lucide-react";
 import { useModel } from "../context/ModelContext.tsx";
 
 interface MessageComposerProps {
@@ -8,6 +8,7 @@ interface MessageComposerProps {
   disabled?: boolean;
   placeholder?: string;
   initialValue?: string;
+  onCancel?: () => void;
 }
 
 const MAX_CHAR_COUNT = 10000;
@@ -25,6 +26,7 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
   disabled = false,
   placeholder = "Message Lumina AI or upload an image...",
   initialValue = "",
+  onCancel,
 }) => {
   const [content, setContent] = useState(initialValue);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -260,23 +262,35 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
               </span>
             )}
 
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={!canSubmit}
-              className={`w-9 h-9 rounded-full flex items-center justify-center transition-all flex-shrink-0 ${
-                canSubmit
-                  ? "bg-black text-white hover:opacity-85 dark:bg-white dark:text-black dark:hover:bg-slate-100 cursor-pointer active:scale-95 shadow-xs"
-                  : "bg-slate-200 dark:bg-[#383838] text-slate-400 dark:text-[#666666] cursor-not-allowed"
-              }`}
-              aria-label="Send message"
-            >
-              {isLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
-              ) : (
-                <SendHorizontal className="w-4 h-4" />
-              )}
-            </button>
+            {isLoading && onCancel ? (
+              <button
+                type="button"
+                onClick={onCancel}
+                className="w-9 h-9 rounded-full flex items-center justify-center transition-all flex-shrink-0 bg-black text-white hover:opacity-85 dark:bg-white dark:text-black cursor-pointer active:scale-95 shadow-xs"
+                title="Stop generating"
+                aria-label="Stop generating"
+              >
+                <Square className="w-3.5 h-3.5 fill-current" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={!canSubmit}
+                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all flex-shrink-0 ${
+                  canSubmit
+                    ? "bg-black text-white hover:opacity-85 dark:bg-white dark:text-black dark:hover:bg-slate-100 cursor-pointer active:scale-95 shadow-xs"
+                    : "bg-slate-200 dark:bg-[#383838] text-slate-400 dark:text-[#666666] cursor-not-allowed"
+                }`}
+                aria-label="Send message"
+              >
+                {isLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+                ) : (
+                  <SendHorizontal className="w-4 h-4" />
+                )}
+              </button>
+            )}
           </div>
         </div>
 
