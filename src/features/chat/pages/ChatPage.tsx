@@ -6,6 +6,7 @@ import {
   useConversations,
   useMessages,
   useSendMessage,
+  useSendMessageStream,
   useCreateConversation,
   useDeleteConversation,
   chatKeys,
@@ -68,6 +69,7 @@ export const ChatPage: React.FC = () => {
   const createConversationMutation = useCreateConversation();
   const sendMessageMutation = useSendMessage(conversationId);
   const deleteConversationMutation = useDeleteConversation();
+  const { sendStream, isStreaming, cancelStream } = useSendMessageStream(conversationId);
   const { data: tokenData } = useTokenBalance();
 
   const [composerKey, setComposerKey] = useState(0);
@@ -87,6 +89,7 @@ export const ChatPage: React.FC = () => {
 
   const isGenerating =
     Boolean(pendingUserContent) ||
+    isStreaming ||
     (sendMessageMutation.isPending &&
       activeConversationIdRef.current === conversationId) ||
     hasServerGeneratingMessage;
@@ -259,7 +262,7 @@ export const ChatPage: React.FC = () => {
         navigate(`/app/${targetConversationId}`, { replace: true });
         activeConversationIdRef.current = targetConversationId;
 
-        sendMessageMutation.mutate(
+        sendStream(
           { content: resolvedContent, file, targetConversationId },
           {
             onSuccess: () => {
@@ -324,7 +327,7 @@ export const ChatPage: React.FC = () => {
       (old = []) => [...old, optimisticMsg]
     );
 
-    sendMessageMutation.mutate(
+    sendStream(
       { content: resolvedContent, file, targetConversationId },
       {
         onSuccess: () => {
@@ -687,15 +690,14 @@ export const ChatPage: React.FC = () => {
       <MessageComposer
         key={composerKey}
         onSendMessage={handleSendMessage}
-        isLoading={
-          sendMessageMutation.isPending || createConversationMutation.isPending
-        }
+        isLoading={isGenerating}
         disabled={isLoadingMessages || isTokenExhausted}
         placeholder={
           isTokenExhausted
             ? "Tokens exhausted. Upgrade your plan to continue chatting..."
             : undefined
         }
+        onCancel={cancelStream}
       />
 
       {/* Export & Sharing Modal */}
